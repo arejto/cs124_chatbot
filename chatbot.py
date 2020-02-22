@@ -5,6 +5,7 @@
 import movielens
 
 import numpy as np
+import re
 
 
 # noinspection PyMethodMayBeStatic
@@ -13,7 +14,7 @@ class Chatbot:
 
     def __init__(self, creative=False):
         # The chatbot's default name is `moviebot`. Give your chatbot a new name.
-        self.name = 'moviebot'
+        self.name = 'moviebot'		# TO CHANGE!!!
 
         self.creative = creative
 
@@ -94,6 +95,10 @@ class Chatbot:
         if self.creative:
             response = "I processed {} in creative mode!!".format(line)
         else:
+            potential_titles = self.extract_titles(self.preprocess(line))
+            for title in potential_titles:
+                ids = self.find_movies_by_title(title)
+                print(ids)
             response = "I processed {} in starter mode!!".format(line)
 
         #############################################################################
@@ -125,7 +130,6 @@ class Chatbot:
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
-
         return text
 
     def extract_titles(self, preprocessed_input):
@@ -147,7 +151,11 @@ class Chatbot:
         :param preprocessed_input: a user-supplied line of text that has been pre-processed with preprocess()
         :returns: list of movie titles that are potentially in the text
         """
-        return []
+
+        quotedFormat = '\"(.*?)\"'
+        potential_titles = re.findall(quotedFormat, preprocessed_input)
+        print(potential_titles)
+        return potential_titles
 
     def find_movies_by_title(self, title):
         """ Given a movie title, return a list of indices of matching movies.
@@ -165,7 +173,17 @@ class Chatbot:
         :param title: a string containing a movie title
         :returns: a list of indices of matching movies
         """
-        return []
+        if self.creative:
+            return []
+        else:
+            ids = []
+            if title.split()[0] == 'A|An|The':
+                particle = title[:title.find('\s')]
+                title = title[title.find('\s')+1:] + ', ' + particle
+            for id, t in enumerate(self.titles):
+                if t[0].find(title) != -1:
+                    ids.append(id)
+            return ids
 
     def extract_sentiment(self, preprocessed_input):
         """Extract a sentiment rating from a line of pre-processed text.
