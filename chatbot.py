@@ -215,25 +215,7 @@ class Chatbot:
         :param title: a string containing a movie title
         :returns: a list of indices of matching movies
         """
-        #print(self.titles)
-        ids = []
-        if not self.creative:
-            articles = ['A', 'An', 'The']
-            #print(title.split())
-            words = title.split()
-            if words[0] in articles:
-                #print("hiii")
-                article = words[0]
-                #print(article)
-
-                #title = title[title.find('\s') + 1:] #+ ', ' + particle
-                title = title[len(article) + 1:]
-                #print(title)
-            for id, t in enumerate(self.titles):
-                if t[0].find(title) != -1:
-                    ids.append(id)
-
-        else:
+        if self.creative:
             title = self.prune_article(title)
             for id, t in enumerate(self.titles):
                 # ignore capitalization
@@ -244,7 +226,51 @@ class Chatbot:
                         ids.append(id)
 
             # print (np.array(self.titles)[ids])
-        return ids
+            return ids
+            
+        # Regex strings
+        titleFormat = '(An|A|The)? ?(.+)'
+        yearFormat = '(\(\d\d\d\d\))'
+        yearFormatBeg = '^(\(\d\d\d\d\))'
+
+        # Parse using RegEx
+        titleParts = re.findall(titleFormat, title)
+
+        # Will contain 3 parts: [particle, title, year]
+        partsList = list(titleParts[0])
+        year = ''
+        # If the year is present in the movie title, parse it out of second part
+        if re.match(yearFormat, partsList[1][-6:]):
+            year = partsList[1][-6:]
+            partsList[1] = partsList[1][:-7]
+        # Add either empty string or the year to the third index of partsList
+        partsList.append(year)
+        print(partsList)
+
+        formerTitle = title    # Used in case the particle isn't pushed to the end of title
+
+        # Construct newly formatted title by various cases
+        if partsList[0] and partsList[2]:
+            title = '%s, %s %s' % (partsList[1], partsList[0], partsList[2])
+        elif partsList[0] and not partsList[2]:
+            title = '%s, %s' % (partsList[1], partsList[0])
+        elif partsList[1] and not partsList[0] and not partsList[2]:
+            title = partsList[1]
+
+        ids = set([])
+        for id, t in enumerate(self.titles):
+            # Only append ids where our titleString is at the front, and directly followed by year (if applicable)
+            if t[0].find(title) == 0:
+                possibleYear = t[0][len(title) + 1:]
+                if not possibleYear or re.match(yearFormatBeg, possibleYear):
+                    ids.add(id)
+            if t[0].find(formerTitle) == 0:
+                possibleYear = t[0][len(formerTitle) + 1:]
+                if not possibleYear or re.match(yearFormatBeg, possibleYear):
+                    ids.add(id)
+            # if t[0].find(title) == 0 or t[0].find(formerTitle) == 0:
+            #     ids.append(id)
+        return list(ids)
 
         '''
         moviesDatabase = open('data/movies.txt', 'r')
@@ -280,14 +306,19 @@ class Chatbot:
         """
         #print(self.sentiment)
         #print(self.sentiment['unspeakable'])
+        print(preprocessed_input)
+        words = re.sub("\".*?\"", "", preprocessed_input)
+        words = words.split()
         words = preprocessed_input.split()
-        fillerWords = ['really', 'actually', 'very', 'honestly']
+        fillerWords = ['really', 'actually', 'very', 'honestly', 'extremely', 'that']
+
         #remove filler words from list of words
         words = [word for word in words if word not in fillerWords]
         #print(words)
         stemmedLexicon = {}
         for word in self.sentiment:
             stemmedLexicon[PorterStemmer().stem(word)] = self.sentiment[word]
+
         #print(stemmedLexicon)
         #print(words)
         posWordCount = 0
@@ -297,6 +328,12 @@ class Chatbot:
             #print(wordStem)
             if wordStem in stemmedLexicon:
                 if i > 0 and (words[i-1] in ['not', 'never', 'nothing'] or words[i-1].endswith('n\'t')):
+                    # if i > 1 and (words[i-2] in ['not', 'never', 'nothing'] or words[i-2].endswith('n\'t')):
+                    #     if stemmedLexicon[wordStem] == 'pos':
+                    #         posWordCount += 1
+                    #     else:
+                    #         negWordCount += 1
+                    #     continue
                     if stemmedLexicon[wordStem] == 'pos':
                         negWordCount += 1
                     else:
@@ -315,7 +352,7 @@ class Chatbot:
         if posWordCount == negWordCount:
             print("neutral")
             return 0
-        #return 0
+
 
     def extract_sentiment_for_movies(self, preprocessed_input):
         """Creative Feature: Extracts the sentiments from a line of pre-processed text
@@ -557,22 +594,26 @@ class Chatbot:
         # Populate this list with k movie indices to recommend to the user.
         recommendations = []
         ratingsList = []
-        #print(user_ratings)
-        #print(ratings_matrix)
+        # print(user_ratings)
+        # print(ratings_matrix)
+        # print(len(ratings_matrix))
         for i in range(len(ratings_matrix)):
-            rating = 0
-            for j, movieRating in enumerate(user_ratings):
-                if movieRating != 0:
-                    similarity = self.similarity(ratings_matrix[i], ratings_matrix[j])
-                    rating += similarity * movieRating
+            rating = np.dot(np.array([self.similarity(ratings_matrix[i], ratings_matrix[j]) if movieRating != 0 else 0 for j, movieRating in enumerate(user_ratings)]), user_ratings)
+            # for j, movieRating in enumerate(user_ratings):
+            #     if movieRating != 0:
+            #         similarity = self.similarity(ratings_matrix[i], ratings_matrix[j])
+            #         rating += similarity * movieRating
+
             #print(rating)
             #only want to append ratings on movies that the user hasn't already seen
             if user_ratings[i] == 0:
                 ratingsList.append((rating, i))
+        # print(ratingsList)
         ratingsList.sort(reverse=True)
-        #print(ratingsList)
-        if len(ratingsList) >= k:
-            recommendations = [pair[1] for pair in ratingsList[:k]]
+        # print(ratingsList)
+        # if len(ratingsList) >= k:
+        recommendations = [pair[1] for pair in ratingsList[:k]]            
+
 
         print(recommendations)
          
