@@ -23,7 +23,7 @@ FEATURE - Understanding references to things said previously: NO
 FEATURE - Responding to arbitrary input: NO
 FEATURE - Speaking very fluently: NO
 FEATURE - Identifying and responding to emotions: NO
-Did not implement any of the above features: NO
+Did not implement any of the above features: YES
 
 #########################################################################################
 # Team Contributions                                                                    #
