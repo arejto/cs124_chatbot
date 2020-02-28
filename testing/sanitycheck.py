@@ -129,7 +129,28 @@ def test_find_movies_by_title():
         chatbot.find_movies_by_title("Titanic (1997)"),
         [1359],
         "Incorrect output for find_movies_by_title('Titanic (1997)').",
+    ) and assertListEquals(
+        chatbot.find_movies_by_title("Se7en"),
+        [45],
+        "Incorrect output for find_movies_by_title('Se7en').",
+    ) and assertListEquals(
+        chatbot.find_movies_by_title("The Notebook"),
+        [5448],
+        "Incorrect output for find_movies_by_title('The Notebook').",
     ):
+    #  and assertListEquals(
+    #     chatbot.find_movies_by_title("10 things i HATE about you"),
+    #     [2063],
+    #     "Incorrect output for find_movies_by_title('10 things i HATE about you').",
+    # ) and assertListEquals(
+    #     chatbot.find_movies_by_title("La guerre du feu"),
+    #     [2439],
+    #     "Incorrect output for find_movies_by_title('La guerre du feu').",
+    # ) and assertListEquals(
+    #     chatbot.find_movies_by_title("Scream"),
+    #     [546, 1142, 1357, 2629],
+    #     "Incorrect output for find_movies_by_title('Scream').",
+    # ):
         print('find_movies_by_title() sanity check passed!')
     print()
 
@@ -187,6 +208,44 @@ def test_find_movies_closest_to_title():
             orderMatters=False
     ):
         print('find_movies_closest_to_title() sanity check passed!')
+    misspelled = "Te"
+
+    if assertListEquals(
+            chatbot.find_movies_closest_to_title(misspelled, max_distance=3),
+            [8082, 4511, 1664],
+            "Incorrect output for test_find_movies_closest_to_title('{}', max_distance={})".format(misspelled, 3),
+            orderMatters=False
+    ):
+        print('find_movies_closest_to_title() sanity check passed!')
+    misspelled = "BAT-MAAAN"
+
+    if assertListEquals(
+            chatbot.find_movies_closest_to_title(misspelled, max_distance=3),
+            [524, 5743],
+            "Incorrect output for test_find_movies_closest_to_title('{}', max_distance={})".format(misspelled, 3),
+            orderMatters=False
+    ):
+        print('find_movies_closest_to_title() sanity check passed!')
+
+    misspelled = "Blargdeblargh"
+
+    if assertListEquals(
+            chatbot.find_movies_closest_to_title(misspelled, max_distance=4),
+            [],
+            "Incorrect output for test_find_movies_closest_to_title('{}', max_distance={})".format(misspelled, 3),
+            orderMatters=False
+    ):
+        print('find_movies_closest_to_title() sanity check passed!')
+
+    misspelled = "the notbook"
+
+    if assertListEquals(
+            chatbot.find_movies_closest_to_title(misspelled, max_distance=3),
+            [5448],
+            "Incorrect output for test_find_movies_closest_to_title('{}', max_distance={})".format(misspelled, 3),
+            orderMatters=False
+    ):
+        print('find_movies_closest_to_title() sanity check passed!')
     print()
     return True
 
@@ -200,6 +259,51 @@ def test_disambiguate():
     if assertListEquals(
             chatbot.disambiguate(clarification, candidates),
             [1359],
+            "Incorrect output for disambiguate('{}', {})".format(clarification, candidates),
+            orderMatters=False
+    ):
+        print('disambiguate() sanity check passed!')
+    clarification = "2"
+    candidates = [1142, 1357, 2629, 546]
+    if assertListEquals(
+            chatbot.disambiguate(clarification, candidates),
+            [1357],
+            "Incorrect output for disambiguate('{}', {})".format(clarification, candidates),
+            orderMatters=False
+    ):
+        print('disambiguate() sanity check passed!')
+    clarification = "2"
+    candidates = [8082, 4511, 1664]
+    if assertListEquals(
+            chatbot.disambiguate(clarification, candidates),
+            [4511],
+            "Incorrect output for disambiguate('{}', {})".format(clarification, candidates),
+            orderMatters=False
+    ):
+        print('disambiguate() sanity check passed!')
+    clarification = "most recent"
+    candidates = [524, 5743]
+    if assertListEquals(
+            chatbot.disambiguate(clarification, candidates),
+            [524],
+            "Incorrect output for disambiguate('{}', {})".format(clarification, candidates),
+            orderMatters=False
+    ):
+        print('disambiguate() sanity check passed!')
+    clarification = "the second one"
+    candidates = [3812, 6294, 4325, 5399, 6735, 7274, 7670, 7842]
+    if assertListEquals(
+            chatbot.disambiguate(clarification, candidates),
+            [6294],
+            "Incorrect output for disambiguate('{}', {})".format(clarification, candidates),
+            orderMatters=False
+    ):
+        print('disambiguate() sanity check passed!')
+    clarification = "the Goblet of Fire one"
+    candidates = [3812, 4325, 5399, 6294, 6735, 7274, 7670, 7842]
+    if assertListEquals(
+            chatbot.disambiguate(clarification, candidates),
+            [6294],
             "Incorrect output for disambiguate('{}', {})".format(clarification, candidates),
             orderMatters=False
     ):

@@ -9,7 +9,6 @@ import re
 import math
 from PorterStemmer import PorterStemmer
 
-
 # noinspection PyMethodMayBeStatic
 class Chatbot:
     """Simple class to implement the chatbot for PA 6."""
@@ -18,6 +17,7 @@ class Chatbot:
         # The chatbot's default name is `moviebot`. Give your chatbot a new name.
         self.name = 'moviebot'
 
+        self.SPELL_CHECK_FLAG = False
         self.creative = creative
 
         # This matrix has the following shape: num_movies x num_users
@@ -94,8 +94,27 @@ class Chatbot:
         # possibly calling other functions. Although modular code is not graded,    #
         # it is highly recommended.                                                 #
         #############################################################################
+        response = "baseic"
+        
         if self.creative:
-            response = "I processed {} in starter mode!!".format(line)
+            if self.SPELL_CHECK_FLAG:
+                if line == 'yes':
+                    response = 'Great, you like "The Notebook".'
+                else:
+                    response = "What did you like?"
+                self.SPELL_CHECK_FLAG = False
+            movie_titles = self.extract_titles(line)
+            # find movies by title
+            if len(movie_titles) == 1:
+                if self.find_movies_by_title(movie_titles[0]) == []:
+                    close_spellings = self.find_movies_closest_to_title(movie_titles[0])
+                    print (close_spellings)
+                    if len(close_spellings) > 0:
+                        response = "Did you mean " + ' '.join(np.array(self.titles)[close_spellings, 0]) + ". Answer 'yes' or 'no'!"
+                        self.SPELL_CHECK_FLAG = True
+                    else:
+                        response = "Sorry I don't know that movie"
+            # response = "I processed {} in starter mode!!".format(line)
         else:
             movie_titles= self.extract_titles(line)
             if len(movie_titles) > 1:
@@ -162,10 +181,23 @@ class Chatbot:
         """
         quotedFormat = '\"(.*?)\"'
         potential_titles = re.findall(quotedFormat, preprocessed_input)
-        print(potential_titles)
         return potential_titles
 
         #return []
+
+    def prune_article(self, title):
+        articles = ['a', 'an', 'the', 'la', 'le', "l'", 'les']
+        #print(title.split())
+        words = title.split()
+        if words[0].lower() in articles:
+            #print("hiii")
+            article = words[0]
+            #print(article)
+
+            new_title = title[len(article) + 1:] + ', ' + article
+            # title = title[len(article) + 1:]
+            # print(title)
+        return new_title
 
     def find_movies_by_title(self, title):
         """ Given a movie title, return a list of indices of matching movies.
@@ -185,21 +217,33 @@ class Chatbot:
         """
         #print(self.titles)
         ids = []
-        articles = ['A', 'An', 'The']
-        #print(title.split())
-        words = title.split()
-        if words[0] in articles:
-            #print("hiii")
-            article = words[0]
-            #print(article)
+        if not self.creative:
+            articles = ['A', 'An', 'The']
+            #print(title.split())
+            words = title.split()
+            if words[0] in articles:
+                #print("hiii")
+                article = words[0]
+                #print(article)
 
-            #title = title[title.find('\s') + 1:] #+ ', ' + particle
-            title = title[len(article) + 1:]
-            #print(title)
-        for id, t in enumerate(self.titles):
-            if t[0].find(title) != -1:
-                ids.append(id)
-        print(ids)
+                #title = title[title.find('\s') + 1:] #+ ', ' + particle
+                title = title[len(article) + 1:]
+                #print(title)
+            for id, t in enumerate(self.titles):
+                if t[0].find(title) != -1:
+                    ids.append(id)
+
+        else:
+            title = self.prune_article(title)
+            for id, t in enumerate(self.titles):
+                # ignore capitalization
+                if t[0].lower().find(title.lower()) != -1:
+                    next_char = t[0].lower().find(title.lower()) + len(title)
+                    # disambiguate!
+                    if next_char == len(t[0]) or not t[0][next_char].isalpha():
+                        ids.append(id)
+
+            # print (np.array(self.titles)[ids])
         return ids
 
         '''
@@ -290,7 +334,7 @@ class Chatbot:
         :returns: a list of tuples, where the first item in the tuple is a movie title,
           and the second is the sentiment in the text toward that movie
         """
-        pass
+        return []
 
     def find_movies_closest_to_title(self, title, max_distance=3):
         """Creative Feature: Given a potentially misspelled movie title,
@@ -310,8 +354,48 @@ class Chatbot:
         :param max_distance: the maximum edit distance to search for
         :returns: a list of movie indices with titles closest to the given title and within edit distance max_distance
         """
+        def compute_edit_distance(a, b, max_dist):
+            D = np.zeros((len(a)  + 1, len(b)  + 1))
+            for i in range(len(a) + 1):
+                D[i,0] = i
+            for j in range(len(b) + 1):
+                D[0,j] = j
 
-        pass
+            exit = False
+            for i in range(1, len(a) + 1):
+                for j in range(1, len(b) + 1):
+                    step = 0 # if same char
+                    if a[i - 1] != b[j - 1]:
+                        step = 2
+                    D[i,j] = min(D[i-1,j] + 1, D[i, j-1] + 1, D[i-1, j-1] + step)
+                    
+            return D[i,j]
+
+        title = self.prune_article(title)
+        cands = []
+        for i, t in enumerate(self.titles):
+            # take only the "normal spelling". drop the year and alt name
+            if t[0][0] != '(':
+                correct_spelling = t[0].split('(')[0][:-1]
+            # if leading '(', take the first two 
+            else:
+                correct_spelling = '('.join(t[0].split('(')[0:2])[:-1]
+
+            dist = compute_edit_distance(correct_spelling.lower(), title.lower(), max_distance)
+            if dist <= max_distance:
+                cands.append([i, dist])
+        
+        # no movies within min dist.
+        if cands == []:
+            return []
+
+        sorted_by_dist = sorted(cands, key=lambda x:x[1])
+        # print ('hello world')
+        # print (sorted_by_dist)
+        min_dist = sorted_by_dist[0][1]
+
+        closest = [m[0] for m in sorted_by_dist if m[1] == min_dist]
+        return closest
 
     def disambiguate(self, clarification, candidates):
         """Creative Feature: Given a list of movies that the user could be talking about
@@ -332,7 +416,47 @@ class Chatbot:
         :param candidates: a list of movie indices
         :returns: a list of indices corresponding to the movies identified by the clarification
         """
-        pass
+        ids = []
+        data = []
+        filler_words = ['the', 'one']
+        result_clarification = ' '.join([w for w in clarification.split() if w not in filler_words])
+        
+        for cand in candidates:
+            # grab only the movie title part. Drop the year and the final space space
+            title = '('.join(self.titles[cand][0].split('(')[:-1])[:-1]
+            # extract year and drop final ")"
+            year  = self.titles[cand][0].split('(')[-1][:-1]
+            if title.find(clarification) != -1 or year == clarification or title.find(result_clarification) != -1:
+                ids.append(cand)
+            
+            data.append([cand, year])
+        # Outputs the second movie in the list. However, if the clarification is "2" for ["Scream 2 (1997)", "Scream 1 (1996)"], it should still output "Scream 2 (1997)" since "2" is a substring.
+        if ids == [] and clarification.isnumeric():
+            return [candidates[int(clarification) - 1]]
+
+        sorted_by_year = sorted(data, key=lambda x:x[1])
+
+        if clarification == 'most recent':
+            return [sorted_by_year[-1][0]]
+
+        # second one case
+        order_words = {
+            'first': 0,
+            'second': 1,
+            'third': 2,
+            'fourth': 3,
+            'fifth': 4,
+            'sixth': 5,
+            'seventh': 6,
+            'eighth': 7,
+            'ninth': 8,
+        }
+
+        for order_word in order_words.keys():
+            if order_word in clarification:
+                return [candidates[order_words[order_word]]]
+
+        return ids
 
     #############################################################################
     # 3. Movie Recommendation helper functions                                  #
