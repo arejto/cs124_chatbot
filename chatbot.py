@@ -470,7 +470,6 @@ class Chatbot:
         # Populate this list with k movie indices to recommend to the user.
         recommendations = []
         ratingsList = []
-<<<<<<< HEAD
         # print(user_ratings)
         # print(ratings_matrix)
         # print(len(ratings_matrix))
@@ -481,32 +480,16 @@ class Chatbot:
             #         similarity = self.similarity(ratings_matrix[i], ratings_matrix[j])
             #         rating += similarity * movieRating
 
-=======
-        #print(user_ratings)
-        #print(ratings_matrix)
-        for i in range(len(ratings_matrix)):
-            rating = 0
-            for j, movieRating in enumerate(user_ratings):
-                if movieRating != 0:
-                    similarity = self.similarity(ratings_matrix[i], ratings_matrix[j])
-                    rating += similarity * movieRating
->>>>>>> c001da67aef322488caed3e1496215db3ea8e5a8
             #print(rating)
             #only want to append ratings on movies that the user hasn't already seen
             if user_ratings[i] == 0:
                 ratingsList.append((rating, i))
-<<<<<<< HEAD
         # print(ratingsList)
         ratingsList.sort(reverse=True)
         # print(ratingsList)
         # if len(ratingsList) >= k:
         recommendations = [pair[1] for pair in ratingsList[:k]]            
-=======
-        ratingsList.sort(reverse=True)
-        #print(ratingsList)
-        if len(ratingsList) >= k:
-            recommendations = [pair[1] for pair in ratingsList[:k]]
->>>>>>> c001da67aef322488caed3e1496215db3ea8e5a8
+
 
         print(recommendations)
          
