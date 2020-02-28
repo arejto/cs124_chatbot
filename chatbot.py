@@ -6,6 +6,8 @@ import movielens
 
 import numpy as np
 import re
+import math
+from PorterStemmer import PorterStemmer
 
 
 # noinspection PyMethodMayBeStatic
@@ -14,7 +16,7 @@ class Chatbot:
 
     def __init__(self, creative=False):
         # The chatbot's default name is `moviebot`. Give your chatbot a new name.
-        self.name = 'moviebot'		# TO CHANGE!!!
+        self.name = 'moviebot'
 
         self.creative = creative
 
@@ -44,7 +46,7 @@ class Chatbot:
         # TODO: Write a short greeting message                                      #
         #############################################################################
 
-        greeting_message = "How can I help you?"
+        greeting_message = "Hi I'm MovieBot! I'm going to recommend a movie to you."
 
         #############################################################################
         #                             END OF YOUR CODE                              #
@@ -93,13 +95,19 @@ class Chatbot:
         # it is highly recommended.                                                 #
         #############################################################################
         if self.creative:
-            response = "I processed {} in creative mode!!".format(line)
-        else:
-            potential_titles = self.extract_titles(self.preprocess(line))
-            for title in potential_titles:
-                ids = self.find_movies_by_title(title)
-                print(ids)
             response = "I processed {} in starter mode!!".format(line)
+        else:
+            movie_titles= self.extract_titles(line)
+            if len(movie_titles) > 1:
+                return "Please tell me about one movie at a time. Go ahead."
+            elif len(movie_titles) == 0:
+                return "Sorry, I don't understand. Tell me about a movie that you have seen."
+            else:
+                self.find_movies_by_title(movie_titles[0])
+                self.extract_sentiment(line)
+
+
+                response = "I processed {} in creative mode!!".format(line)
 
         #############################################################################
         #                             END OF YOUR CODE                              #
@@ -130,6 +138,7 @@ class Chatbot:
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
+
         return text
 
     def extract_titles(self, preprocessed_input):
@@ -151,11 +160,12 @@ class Chatbot:
         :param preprocessed_input: a user-supplied line of text that has been pre-processed with preprocess()
         :returns: list of movie titles that are potentially in the text
         """
-
         quotedFormat = '\"(.*?)\"'
         potential_titles = re.findall(quotedFormat, preprocessed_input)
         print(potential_titles)
         return potential_titles
+
+        #return []
 
     def find_movies_by_title(self, title):
         """ Given a movie title, return a list of indices of matching movies.
@@ -173,17 +183,64 @@ class Chatbot:
         :param title: a string containing a movie title
         :returns: a list of indices of matching movies
         """
-        if self.creative:
-            return []
-        else:
-            ids = []
-            if title.split()[0] == 'A|An|The':
-                particle = title[:title.find('\s')]
-                title = title[title.find('\s')+1:] + ', ' + particle
-            for id, t in enumerate(self.titles):
-                if t[0].find(title) != -1:
-                    ids.append(id)
-            return ids
+        # Regex strings
+        titleFormat = '(An|A|The)? ?(.+)'
+        yearFormat = '(\(\d\d\d\d\))'
+        yearFormatBeg = '^(\(\d\d\d\d\))'
+
+        # Parse using RegEx
+        titleParts = re.findall(titleFormat, title)
+
+        # Will contain 3 parts: [particle, title, year]
+        partsList = list(titleParts[0])
+        year = ''
+        # If the year is present in the movie title, parse it out of second part
+        if re.match(yearFormat, partsList[1][-6:]):
+            year = partsList[1][-6:]
+            partsList[1] = partsList[1][:-7]
+        # Add either empty string or the year to the third index of partsList
+        partsList.append(year)
+        print(partsList)
+
+        formerTitle = title    # Used in case the particle isn't pushed to the end of title
+
+        # Construct newly formatted title by various cases
+        if partsList[0] and partsList[2]:
+            title = '%s, %s %s' % (partsList[1], partsList[0], partsList[2])
+        elif partsList[0] and not partsList[2]:
+            title = '%s, %s' % (partsList[1], partsList[0])
+        elif partsList[1] and not partsList[0] and not partsList[2]:
+            title = partsList[1]
+
+        ids = set([])
+        for id, t in enumerate(self.titles):
+            # Only append ids where our titleString is at the front, and directly followed by year (if applicable)
+            if t[0].find(title) == 0:
+                possibleYear = t[0][len(title) + 1:]
+                if not possibleYear or re.match(yearFormatBeg, possibleYear):
+                    ids.add(id)
+            if t[0].find(formerTitle) == 0:
+                possibleYear = t[0][len(formerTitle) + 1:]
+                if not possibleYear or re.match(yearFormatBeg, possibleYear):
+                    ids.add(id)
+            # if t[0].find(title) == 0 or t[0].find(formerTitle) == 0:
+            #     ids.append(id)
+        return list(ids)
+
+        '''
+        moviesDatabase = open('data/movies.txt', 'r')
+        words = title.split()
+        if words[0] in ['a', 'an', 'the']:
+            title = word[1:] + word[0]
+            print(title)
+        print(title)
+        for line in moviesDatabase:
+            startIndex = line.find('%') + 1
+            #yearInQuotes = line.find(r'(\d\d\d\d)', line)
+            #print(yearInQuotes)
+            #endIndex = 
+        return []
+        '''
 
     def extract_sentiment(self, preprocessed_input):
         """Extract a sentiment rating from a line of pre-processed text.
@@ -202,7 +259,53 @@ class Chatbot:
         :param preprocessed_input: a user-supplied line of text that has been pre-processed with preprocess()
         :returns: a numerical value for the sentiment of the text
         """
-        return 0
+        #print(self.sentiment)
+        #print(self.sentiment['unspeakable'])
+        print(preprocessed_input)
+        words = re.sub("\".*?\"", "", preprocessed_input)
+        words = words.split()
+        words = preprocessed_input.split()
+        fillerWords = ['really', 'actually', 'very', 'honestly', 'extremely', 'that']
+        #remove filler words from list of words
+        words = [word for word in words if word not in fillerWords]
+        #print(words)
+        stemmedLexicon = {}
+        for word in self.sentiment:
+            stemmedLexicon[PorterStemmer().stem(word)] = self.sentiment[word]
+
+        #print(stemmedLexicon)
+        #print(words)
+        posWordCount = 0
+        negWordCount = 0
+        for i, word in enumerate(words):
+            wordStem = PorterStemmer().stem(word)
+            #print(wordStem)
+            if wordStem in stemmedLexicon:
+                if i > 0 and (words[i-1] in ['not', 'never', 'nothing'] or words[i-1].endswith('n\'t')):
+                    # if i > 1 and (words[i-2] in ['not', 'never', 'nothing'] or words[i-2].endswith('n\'t')):
+                    #     if stemmedLexicon[wordStem] == 'pos':
+                    #         posWordCount += 1
+                    #     else:
+                    #         negWordCount += 1
+                    #     continue
+                    if stemmedLexicon[wordStem] == 'pos':
+                        negWordCount += 1
+                    else:
+                        posWordCount += 1
+                else:
+                    if stemmedLexicon[wordStem] == 'pos':
+                        posWordCount += 1
+                    else:
+                        negWordCount += 1
+        if posWordCount > negWordCount:
+            print("positive")
+            return 1
+        if posWordCount < negWordCount:
+            print("negative")
+            return -1
+        if posWordCount == negWordCount:
+            print("neutral")
+            return 0
 
     def extract_sentiment_for_movies(self, preprocessed_input):
         """Creative Feature: Extracts the sentiments from a line of pre-processed text
@@ -293,6 +396,13 @@ class Chatbot:
 
         # The starter code returns a new matrix shaped like ratings but full of zeros.
         binarized_ratings = np.zeros_like(ratings)
+        for row in range(len(ratings)):
+            for col in range(len(ratings[0])):
+                if ratings[row][col] != 0 and ratings[row][col] <= threshold:
+                    binarized_ratings[row][col] = -1
+                elif ratings[row][col] > threshold:
+                    binarized_ratings[row][col] = 1
+        #print(binarized_ratings)
 
         #############################################################################
         #                             END OF YOUR CODE                              #
@@ -312,7 +422,13 @@ class Chatbot:
         #############################################################################
         # TODO: Compute cosine similarity between the two vectors.
         #############################################################################
+        #print(u)
+        #print(v)
         similarity = 0
+        numerator = np.dot(u, v)
+        denominator = math.sqrt(np.dot(u, u)) * math.sqrt(np.dot(v,v)) 
+        similarity = numerator / denominator
+        #print(similarity)
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -350,7 +466,29 @@ class Chatbot:
 
         # Populate this list with k movie indices to recommend to the user.
         recommendations = []
+        ratingsList = []
+        # print(user_ratings)
+        # print(ratings_matrix)
+        # print(len(ratings_matrix))
+        for i in range(len(ratings_matrix)):
+            rating = np.dot(np.array([self.similarity(ratings_matrix[i], ratings_matrix[j]) if movieRating != 0 else 0 for j, movieRating in enumerate(user_ratings)]), user_ratings)
+            # for j, movieRating in enumerate(user_ratings):
+            #     if movieRating != 0:
+            #         similarity = self.similarity(ratings_matrix[i], ratings_matrix[j])
+            #         rating += similarity * movieRating
 
+            #print(rating)
+            #only want to append ratings on movies that the user hasn't already seen
+            if user_ratings[i] == 0:
+                ratingsList.append((rating, i))
+        # print(ratingsList)
+        ratingsList.sort(reverse=True)
+        # print(ratingsList)
+        # if len(ratingsList) >= k:
+        recommendations = [pair[1] for pair in ratingsList[:k]]            
+
+        print(recommendations)
+         
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
