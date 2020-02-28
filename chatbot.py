@@ -260,34 +260,21 @@ class Chatbot:
         ids = []
         for id, t in enumerate(self.titles):
             # Only append ids where our titleString is at the front, and directly followed by year (if applicable)
+
+            # Checking re-formatted title
             if t[0].find(title) == 0:
                 possibleYear = t[0][len(title) + 1:]
                 if not possibleYear or re.match(yearFormatBeg, possibleYear):
                     ids.append(id)
                     continue
+            # Checking regular title (in case the article doesn't get shifted to end)
             if t[0].find(formerTitle) == 0:
                 possibleYear = t[0][len(formerTitle) + 1:]
                 if not possibleYear or re.match(yearFormatBeg, possibleYear):
                     ids.append(id)
                     continue
-            # if t[0].find(title) == 0 or t[0].find(formerTitle) == 0:
-            #     ids.append(id)
         return ids
 
-        '''
-        moviesDatabase = open('data/movies.txt', 'r')
-        words = title.split()
-        if words[0] in ['a', 'an', 'the']:
-            title = word[1:] + word[0]
-            print(title)
-        print(title)
-        for line in moviesDatabase:
-            startIndex = line.find('%') + 1
-            #yearInQuotes = line.find(r'(\d\d\d\d)', line)
-            #print(yearInQuotes)
-            #endIndex = 
-        return []
-        '''
 
     def extract_sentiment(self, preprocessed_input):
         """Extract a sentiment rating from a line of pre-processed text.
@@ -310,12 +297,32 @@ class Chatbot:
         #print(self.sentiment['unspeakable'])
         print(preprocessed_input)
         words = re.sub("\".*?\"", "", preprocessed_input)
+        # words = re.sub('[,.!?\\-]', "", words)
+        for i in range(20):
+            index = max(words.find(', but'), words.find(', however'))
+            if index == -1:
+                break
+            words = words[index + 1:]
+        words = re.sub('[,.!?\\-]', "", words)
         words = words.split()
-        words = preprocessed_input.split()
-        fillerWords = ['really', 'actually', 'very', 'honestly', 'extremely', 'that']
+
+        fillerWords = ['really', 'actually', 'very', 'honestly', 'extremely', 'that', 'totally', 'too', 'so']
 
         #remove filler words from list of words
-        words = [word for word in words if word not in fillerWords]
+        # words = [word for word in words if word not in fillerWords]
+        words = [PorterStemmer().stem(word) for word in words if not word.endswith('ly') and not word.endswith('ry') and word not in fillerWords]
+        print(words)
+        # LEFT OFF HERE!!! ---
+
+        # sentiment = 0
+        # for i, word in enumerate(words):
+        #     if word in self.sentiment.keys():
+        #         if i > 0 and (words[i-1] in ['not', 'never', 'nothing'] or words[i-1].endswith('n\'t')):
+        #             sentiment += -1 * self.sentiment[word] == 
+
+        # END HERE ---
+
+
         #print(words)
         stemmedLexicon = {}
         for word in self.sentiment:
@@ -326,25 +333,28 @@ class Chatbot:
         posWordCount = 0
         negWordCount = 0
         for i, word in enumerate(words):
-            wordStem = PorterStemmer().stem(word)
+            wordStem = word
+            # wordStem = PorterStemmer().stem(word)
             #print(wordStem)
             if wordStem in stemmedLexicon:
-                if i > 0 and (words[i-1] in ['not', 'never', 'nothing'] or words[i-1].endswith('n\'t')):
-                    # if i > 1 and (words[i-2] in ['not', 'never', 'nothing'] or words[i-2].endswith('n\'t')):
-                    #     if stemmedLexicon[wordStem] == 'pos':
-                    #         posWordCount += 1
-                    #     else:
-                    #         negWordCount += 1
-                    #     continue
+                if i > 0 and (words[i-1] in [PorterStemmer().stem('not'), PorterStemmer().stem('never'), PorterStemmer().stem('nothing')] or words[i-1].endswith('n\'t')):
+                    if i > 1 and (words[i-2] in [PorterStemmer().stem('not'), PorterStemmer().stem('never'), PorterStemmer().stem('nothing')] or words[i-2].endswith('n\'t')):
+                        if stemmedLexicon[wordStem] == 'pos':
+                            posWordCount += 1
+                        else:
+                            negWordCount += 1
+                        continue
                     if stemmedLexicon[wordStem] == 'pos':
                         negWordCount += 1
                     else:
                         posWordCount += 1
+                        continue
                 else:
                     if stemmedLexicon[wordStem] == 'pos':
                         posWordCount += 1
                     else:
                         negWordCount += 1
+                    continue
         if posWordCount > negWordCount:
             print("positive")
             return 1
@@ -551,11 +561,14 @@ class Chatbot:
         #############################################################################
         # TODO: Compute cosine similarity between the two vectors.
         #############################################################################
-        #print(u)
-        #print(v)
+        # print(u)
+        # print(v)
         similarity = 0
         numerator = np.dot(u, v)
-        denominator = math.sqrt(np.dot(u, u)) * math.sqrt(np.dot(v,v)) 
+        denominator = np.linalg.norm(u) * np.linalg.norm(v)
+        # denominator = math.sqrt(np.dot(u, u)) * math.sqrt(np.dot(v,v))
+        if denominator == 0:
+            return 0 
         similarity = numerator / denominator
         #print(similarity)
         #############################################################################
@@ -599,25 +612,26 @@ class Chatbot:
         # print(user_ratings)
         # print(ratings_matrix)
         # print(len(ratings_matrix))
-        for i in range(len(ratings_matrix)):
-            rating = np.dot(np.array([self.similarity(ratings_matrix[i], ratings_matrix[j]) if movieRating != 0 else 0 for j, movieRating in enumerate(user_ratings)]), user_ratings)
+
+        # POTENTIAL ISSUE -- NEED TO ADD THE NEW RATINGS TO THE MATRIX
+        for i in range(len(user_ratings)):
+            if user_ratings[i] != 0:
+                continue
+
+            rating = np.dot(np.array([0 if movieRating == 0 else self.similarity(ratings_matrix[i], ratings_matrix[j]) for j, movieRating in enumerate(user_ratings)]), user_ratings)
+            # rating = 0
             # for j, movieRating in enumerate(user_ratings):
             #     if movieRating != 0:
             #         similarity = self.similarity(ratings_matrix[i], ratings_matrix[j])
             #         rating += similarity * movieRating
 
-            #print(rating)
             #only want to append ratings on movies that the user hasn't already seen
-            if user_ratings[i] == 0:
-                ratingsList.append((rating, i))
-        # print(ratingsList)
+            ratingsList.append((rating, i))
         ratingsList.sort(reverse=True)
-        # print(ratingsList)
         # if len(ratingsList) >= k:
+        print('Non-zero user_ratings: ', [(index, r) for index, r in enumerate(user_ratings) if r != 0])
+        print('New Ratings', ratingsList[:k + 5])
         recommendations = [pair[1] for pair in ratingsList[:k]]            
-
-
-        print(recommendations)
          
         #############################################################################
         #                             END OF YOUR CODE                              #
