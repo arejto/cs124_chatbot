@@ -257,20 +257,22 @@ class Chatbot:
         elif partsList[1] and not partsList[0] and not partsList[2]:
             title = partsList[1]
 
-        ids = set([])
+        ids = []
         for id, t in enumerate(self.titles):
             # Only append ids where our titleString is at the front, and directly followed by year (if applicable)
             if t[0].find(title) == 0:
                 possibleYear = t[0][len(title) + 1:]
                 if not possibleYear or re.match(yearFormatBeg, possibleYear):
-                    ids.add(id)
+                    ids.append(id)
+                    continue
             if t[0].find(formerTitle) == 0:
                 possibleYear = t[0][len(formerTitle) + 1:]
                 if not possibleYear or re.match(yearFormatBeg, possibleYear):
-                    ids.add(id)
+                    ids.append(id)
+                    continue
             # if t[0].find(title) == 0 or t[0].find(formerTitle) == 0:
             #     ids.append(id)
-        return list(ids)
+        return ids
 
         '''
         moviesDatabase = open('data/movies.txt', 'r')
