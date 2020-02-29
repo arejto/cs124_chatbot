@@ -26,6 +26,11 @@ class Chatbot:
         self.titles, ratings = movielens.ratings()
         self.sentiment = movielens.sentiment()
 
+        # Construct a stemmed sentiment lexicon
+        self.stemmedsentiment = {}
+        for word in self.sentiment:
+            self.stemmedsentiment[PorterStemmer().stem(word)] = self.sentiment[word]
+
         #############################################################################
         # TODO: Binarize the movie ratings matrix.                                  #
         #############################################################################
@@ -244,7 +249,6 @@ class Chatbot:
             partsList[1] = partsList[1][:-7]
         # Add either empty string or the year to the third index of partsList
         partsList.append(year)
-        print(partsList)
 
         formerTitle = title    # Necessary in case the particle isn't pushed to the end of title
 
@@ -292,74 +296,50 @@ class Chatbot:
         :param preprocessed_input: a user-supplied line of text that has been pre-processed with preprocess()
         :returns: a numerical value for the sentiment of the text
         """
-        print(preprocessed_input)
-        words = re.sub("\".*?\"", "", preprocessed_input)
-        # words = re.sub('[,.!?\\-]', "", words)
-        for i in range(20):
-            index = max(words.find(', but'), words.find(', however'))
-            if index == -1:
-                break
-            words = words[index + 1:]
-        words = re.sub('[,.!?\\-]', "", words)
-        words = words.split()
+        negation_words = ['not', 'never', 'nothing']
 
-        fillerWords = ['really', 'actually', 'very', 'honestly', 'extremely', 'that', 'totally', 'too', 'so']
+        words = re.sub("\".*?\"", "", preprocessed_input)   # Remove the singular movie title
+        words = re.sub(" +", " ", words)                    # Remove extraneous spaces
+        words = re.sub('[,.!?\\-]', "", words)              # Remove punctuation
+        words = words.split()                               # Split the words into a list
+        words = [word.lower() for word in words]            # Send all words to lowercase
 
-        #remove filler words from list of words
-        # words = [word for word in words if word not in fillerWords]
-        words = [PorterStemmer().stem(word) for word in words if not word.endswith('ly') and not word.endswith('ry') and word not in fillerWords]
-        print(words)
-        # LEFT OFF HERE!!! ---
+        sentiment = 0       # Initial sentiment (will toggle up and down)
+        invert_flag = 1     # Whether to flip sentiment due to the presence of negation words
 
-        # sentiment = 0
-        # for i, word in enumerate(words):
-        #     if word in self.sentiment.keys():
-        #         if i > 0 and (words[i-1] in ['not', 'never', 'nothing'] or words[i-1].endswith('n\'t')):
-        #             sentiment += -1 * self.sentiment[word] == 
-
-        # END HERE ---
-
-
-        #print(words)
-        stemmedLexicon = {}
-        for word in self.sentiment:
-            stemmedLexicon[PorterStemmer().stem(word)] = self.sentiment[word]
-
-        #print(stemmedLexicon)
-        #print(words)
-        posWordCount = 0
-        negWordCount = 0
         for i, word in enumerate(words):
-            wordStem = word
-            # wordStem = PorterStemmer().stem(word)
-            #print(wordStem)
-            if wordStem in stemmedLexicon:
-                if i > 0 and (words[i-1] in [PorterStemmer().stem('not'), PorterStemmer().stem('never'), PorterStemmer().stem('nothing')] or words[i-1].endswith('n\'t')):
-                    if i > 1 and (words[i-2] in [PorterStemmer().stem('not'), PorterStemmer().stem('never'), PorterStemmer().stem('nothing')] or words[i-2].endswith('n\'t')):
-                        if stemmedLexicon[wordStem] == 'pos':
-                            posWordCount += 1
-                        else:
-                            negWordCount += 1
-                        continue
-                    if stemmedLexicon[wordStem] == 'pos':
-                        negWordCount += 1
-                    else:
-                        posWordCount += 1
-                        continue
-                else:
-                    if stemmedLexicon[wordStem] == 'pos':
-                        posWordCount += 1
-                    else:
-                        negWordCount += 1
-                    continue
-        if posWordCount > negWordCount:
-            print("positive")
+            # Invert the invert flag if you encounter a negation word
+            if i > 0 and words[i] in negation_words or words[i].endswith('\'t'):
+                invert_flag *= -1
+                continue
+
+            # Check if the word itself is in self.sentiment
+            if word in self.sentiment:
+                if self.sentiment[word] == 'pos':
+                    sentiment += 1 * invert_flag
+                else:       # self.sentiment[word] == 'neg'
+                    sentiment -= 1 * invert_flag
+                if invert_flag == -1:
+                    invert_flag = 1
+                continue
+
+            # Check if the stemmed word is in self.stemmedsentiment
+            stemmed_word = PorterStemmer().stem(word)
+            if stemmed_word in self.stemmedsentiment:
+                if self.stemmedsentiment[stemmed_word] == 'pos':
+                    sentiment += 1 * invert_flag
+                else:       # self.sentiment[word] == 'neg'
+                    sentiment -= 1 * invert_flag
+                if invert_flag == -1:
+                    invert_flag = 1
+                continue
+
+        # Return the sentiment (1 for positive, -1 for negative, 0 for neutral)
+        if sentiment > 0:
             return 1
-        if posWordCount < negWordCount:
-            print("negative")
+        elif sentiment < 0:
             return -1
-        if posWordCount == negWordCount:
-            print("neutral")
+        else:   # sentiment == 0
             return 0
 
 
@@ -560,10 +540,10 @@ class Chatbot:
         # TODO: Compute cosine similarity between the two vectors.
         #############################################################################
         similarity = 0
-        numerator = np.dot(u, v)
         denominator = np.linalg.norm(u) * np.linalg.norm(v)
         if denominator == 0:
             return 0 
+        numerator = np.dot(u, v)
         similarity = numerator / denominator
         #############################################################################
         #                             END OF YOUR CODE                              #
