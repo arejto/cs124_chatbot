@@ -183,7 +183,6 @@ class Chatbot:
         potential_titles = re.findall(quotedFormat, preprocessed_input)
         return potential_titles
 
-        #return []
 
     def prune_article(self, title):
         articles = ['a', 'an', 'the', 'la', 'le', "l'", 'les']
@@ -293,8 +292,6 @@ class Chatbot:
         :param preprocessed_input: a user-supplied line of text that has been pre-processed with preprocess()
         :returns: a numerical value for the sentiment of the text
         """
-        #print(self.sentiment)
-        #print(self.sentiment['unspeakable'])
         print(preprocessed_input)
         words = re.sub("\".*?\"", "", preprocessed_input)
         # words = re.sub('[,.!?\\-]', "", words)
@@ -537,11 +534,12 @@ class Chatbot:
         binarized_ratings = np.zeros_like(ratings)
         for row in range(len(ratings)):
             for col in range(len(ratings[0])):
-                if ratings[row][col] != 0 and ratings[row][col] <= threshold:
-                    binarized_ratings[row][col] = -1
-                elif ratings[row][col] > threshold:
+                if ratings[row][col] == 0:
+                    continue
+                if ratings[row][col] > threshold:
                     binarized_ratings[row][col] = 1
-        #print(binarized_ratings)
+                else:
+                    binarized_ratings[row][col] = -1
 
         #############################################################################
         #                             END OF YOUR CODE                              #
@@ -561,16 +559,12 @@ class Chatbot:
         #############################################################################
         # TODO: Compute cosine similarity between the two vectors.
         #############################################################################
-        # print(u)
-        # print(v)
         similarity = 0
         numerator = np.dot(u, v)
         denominator = np.linalg.norm(u) * np.linalg.norm(v)
-        # denominator = math.sqrt(np.dot(u, u)) * math.sqrt(np.dot(v,v))
         if denominator == 0:
             return 0 
         similarity = numerator / denominator
-        #print(similarity)
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -609,30 +603,17 @@ class Chatbot:
         # Populate this list with k movie indices to recommend to the user.
         recommendations = []
         ratingsList = []
-        # print(user_ratings)
-        # print(ratings_matrix)
-        # print(len(ratings_matrix))
 
-        # POTENTIAL ISSUE -- NEED TO ADD THE NEW RATINGS TO THE MATRIX
         for i in range(len(user_ratings)):
+            # If user has already rated this movie, continue bc we don't want to recommend something he/she
+            # has already seen
             if user_ratings[i] != 0:
                 continue
-
             rating = np.dot(np.array([0 if movieRating == 0 else self.similarity(ratings_matrix[i], ratings_matrix[j]) for j, movieRating in enumerate(user_ratings)]), user_ratings)
-            # rating = 0
-            # for j, movieRating in enumerate(user_ratings):
-            #     if movieRating != 0:
-            #         similarity = self.similarity(ratings_matrix[i], ratings_matrix[j])
-            #         rating += similarity * movieRating
-
-            #only want to append ratings on movies that the user hasn't already seen
             ratingsList.append((rating, i))
+            
         ratingsList.sort(reverse=True)
-        # if len(ratingsList) >= k:
-        print('Non-zero user_ratings: ', [(index, r) for index, r in enumerate(user_ratings) if r != 0])
-        print('New Ratings', ratingsList[:k + 5])
-        recommendations = [pair[1] for pair in ratingsList[:k]]            
-         
+        recommendations = [pair[1] for pair in ratingsList[:k]]      
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
