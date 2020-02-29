@@ -144,15 +144,18 @@ class Chatbot:
                     return response
 
                 else:                               # Exactly one valid movie was found from the title
+                    movie_index = movie_titles[0]
                     sentiment = self.extract_sentiment(line)
 
                     if sentiment == 0:              # Neutral sentiment
                         return "I'm sorry, I'm not sure if you liked \"{}\". Tell me more about it.".format(title)
                     elif sentiment > 0:
-                        # Do something
+                        # Do something about if the user already talked about this movie (say something about changing/keeping)
+                        self.ratings[movie_index] = 1
                         return "OK, you liked \"{}\"! Tell me what you thought of another movie.".format(title)
                     else:   # sentiment < 0
-                        # Do something
+                        # Do something about if the user already talked about this movie (say something about changing/keeping)
+                        self.ratings[movie_index] = -1
                         return "OK, you didn't like \"{}\"... Tell me what you thought of another movie.".format(title)
 
 
