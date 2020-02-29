@@ -7,6 +7,7 @@ import movielens
 import numpy as np
 import re
 import math
+import collections
 from PorterStemmer import PorterStemmer
 
 # noinspection PyMethodMayBeStatic
@@ -37,6 +38,12 @@ class Chatbot:
 
         # Binarize the movie ratings before storing the binarized matrix.
         self.ratings = self.binarize(ratings)
+
+        self.user_ratings = np.zeros(len(self.ratings))
+        self.movies_processed = set([])
+        self.already_recommended = set([])
+        self.recommendations = collections.deque([])
+        self.ASKED_FOR_REC = False
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -99,9 +106,13 @@ class Chatbot:
         # possibly calling other functions. Although modular code is not graded,    #
         # it is highly recommended.                                                 #
         #############################################################################
+        # yes_phrases = set(['yes', 'yea', 'yeah', 'sure', 'yup', 'ok', 'okay'])
+        yes_re = '.*(yes|yea|yeah|sure|yup|ok).*' 
+        no_re = '.*(no|nah|negative).*'
+        # no_phrases = set(['no', 'nope', 'nah', 'negative'])
         response = "baseic"
-        
-        if self.creative:
+
+        if self.creative:       # CREATIVE MODE
             if self.SPELL_CHECK_FLAG:
                 if line == 'yes':
                     response = 'Great, you like "The Notebook".'
@@ -120,52 +131,103 @@ class Chatbot:
                     else:
                         response = "Sorry I don't know that movie"
             # response = "I processed {} in starter mode!!".format(line)
-        else:
+        else:                   # STARTER MODE
+            if self.ASKED_FOR_REC:  # Expecting some variation of 'yes' or 'no' as an answer
+                if re.match(yes_re, line.lower()):
+                    return self.giveRecommendation()
+                elif re.match(no_re, line.lower()):
+                    self.ASKED_FOR_REC = False
+                    return "Ok. Let's talk about more movies!"
+                else:
+                    return "I'm sorry, but I didn't quite understand your answer to my question. Would you like more recommendations--yes or no?"
+
             movie_titles = self.extract_titles(line)
 
-            # Extracted multiple candidate movie titles from the line (basic mode doesn't handle this)
-            if len(movie_titles) > 1:
+            if len(movie_titles) > 1:        # Extracted multiple candidate movie titles from the line (basic mode doesn't handle this)
                 return "Please tell me about one movie at a time. Go ahead."
 
-            # Extracted no candidate movie titles at all from the line
-            elif len(movie_titles) == 0:
-                return "Sorry, I don't understand. Tell me about a movie that you have seen."
+            elif len(movie_titles) == 0:     # Extracted no candidate movie titles at all from the line
+            ##########NEED TO TEST THIS FUNCTION!!!#########
+                # If the user's input text has the word recommend, assume they are asking for a recommendation 
+                if line.lower().find('recommend') != -1 and len(self.movies_processed) < 5:     
+                    return "Before I make any recommendations, I need to learn more about your preferences. Please tell me about another movie you liked."
+                elif line.lower().find('recommend') != -1 and len(self.movies_processed) >= 5:
+                    return self.giveRecommendation()
+                    # if len(self.recommendations) == 0:
+                    #     self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
+                    # self.ASKED_FOR_REC = True
+                    # return "OK, given what you have told me, I think that you might like \"{}\". Would you like another recommendation?".format(self.titles[self.recommendations.popleft()])
+            ################################################
+                else: # Otherwise, our chatbot is unable to process the user's message.
+                    return "Sorry, I don't understand. Tell me about a movie that you have seen."
 
-            # Extracted exactly one candidate movie title from the line
-            else:
+            else:                            # Extracted exactly one candidate movie title from the line
                 title = movie_titles[0]
                 movie_indices = self.find_movies_by_title(movie_titles[0])
+                response = self.generateResponseStarter(title, movie_indices, line)
 
-                if len(movie_indices) == 0:         # If no valid movies were found from the title
-                    return "Sorry, I've never heard of a movie called \"{}\". Please tell me about another movie you liked.".format(title)
+                # IF RESPONSE IS SOMEHOW INVALID, RETURN SOME GENERAL RESPONSE
 
-                elif len(movie_indices) > 1:        # If multiple valid movies were fround from the title
-                    return "I found more than one movie called \"{}\". Can you please clarify?".format(title)
-                    return response
-
-                else:                               # Exactly one valid movie was found from the title
-                    movie_index = movie_titles[0]
-                    sentiment = self.extract_sentiment(line)
-
-                    if sentiment == 0:              # Neutral sentiment
-                        return "I'm sorry, I'm not sure if you liked \"{}\". Tell me more about it.".format(title)
-                    elif sentiment > 0:
-                        # Do something about if the user already talked about this movie (say something about changing/keeping)
-                        self.ratings[movie_index] = 1
-                        return "OK, you liked \"{}\"! Tell me what you thought of another movie.".format(title)
-                    else:   # sentiment < 0
-                        # Do something about if the user already talked about this movie (say something about changing/keeping)
-                        self.ratings[movie_index] = -1
-                        return "OK, you didn't like \"{}\"... Tell me what you thought of another movie.".format(title)
-
-
-
-                response = "I processed {} in creative mode!!".format(line)
+                return response
 
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
         return response
+
+    def generateResponseStarter(self, title, movie_indices, line):
+        """Generate an appropriate chatbot response given a title, list of movie indices, and an input line
+
+        According to spec for the starter implementation, if an input line yields 0 or >1 movie index, we are
+        unable to process the information and return a response saying so.
+
+        If there is exactly one movie index in movie_indices, we must process the sentiment. If the sentiment is
+        non-neutral, we add it appropriately to self.user_ratings, and return a message which confirms that we 
+        have processed the sentiment.
+
+        Once we have processed >= 5 data points, the chatbot begins to offer recommendations to the user using the
+        self.recommend function.
+        """
+        response = "Please tell me more about your movie preferences" # placeholder
+
+        if len(movie_indices) == 0:         # If no valid movies were found from the title
+            return "Sorry, I've never heard of a movie called \"{}\". Please tell me about another movie you liked.".format(title)
+
+        elif len(movie_indices) > 1:        # If multiple valid movies were fround from the title
+            return "I found more than one movie called \"{}\". Can you please clarify?".format(title)
+
+        else:                               # Exactly one valid movie was found from the title
+            movie_index = movie_indices[0]
+            sentiment = self.extract_sentiment(line)
+
+            if sentiment == 0:              # Neutral sentiment
+                return "I'm sorry, I'm not sure if you liked \"{}\". Tell me more about it.".format(title)
+            else:
+                self.user_ratings[movie_index] = sentiment
+                self.movies_processed.add(movie_index)
+                if len(self.movies_processed) >= 5:
+                    if sentiment > 0:
+                        return("Got it, you liked \"{}\"! Let me think...".format(title) + self.giveRecommendation())
+                    else:   # sentiment < 0
+                        return("I see, you didn't liked \"{}\". Let me think...".format(title) + self.giveRecommendation())
+                if sentiment > 0:
+                    return "OK, you liked \"{}\"! Tell me what you thought of another movie.".format(title)
+                else:   # sentiment < 0
+                    return "OK, so you didn't like \"{}\"! Tell me what you thought of another movie.".format(title)
+
+    def giveRecommendation(self):
+        if len(self.recommendations) == 0:
+            self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
+        self.ASKED_FOR_REC = True
+        next_recommendation = self.recommendations.popleft()
+        while next_recommendation in self.already_recommended:
+            next_recommendation = self.recommendations.popleft()
+            if len(self.recommendations) == 0:
+                self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
+        self.already_recommended.add(next_recommendation)
+        return "OK, given what you have told me, I think that you might like \"{}\". Would you like another recommendation?".format(self.titles[next_recommendation][0])
+            
+
 
     @staticmethod
     def preprocess(text):
@@ -352,8 +414,28 @@ class Chatbot:
                     invert_flag = 1
                 continue
 
-            # Check if the stemmed word is in self.stemmedsentiment
+            # Check if the word itself is in self.stemmedsentiment
+            if word in self.stemmedsentiment:
+                if self.stemmedsentiment[word] == 'pos':
+                    sentiment += 1 * invert_flag
+                else:       # self.sentiment[word] == 'neg'
+                    sentiment -= 1 * invert_flag
+                if invert_flag == -1:
+                    invert_flag = 1
+                continue
+
+            # Check if the stemmed word is in self.sentiment
             stemmed_word = PorterStemmer().stem(word)
+            if stemmed_word in self.sentiment:
+                if self.sentiment[stemmed_word] == 'pos':
+                    sentiment += 1 * invert_flag
+                else:       # self.sentiment[word] == 'neg'
+                    sentiment -= 1 * invert_flag
+                if invert_flag == -1:
+                    invert_flag = 1
+                continue
+
+            # Check if the stemmed word is in self.stemmedsentiment
             if stemmed_word in self.stemmedsentiment:
                 if self.stemmedsentiment[stemmed_word] == 'pos':
                     sentiment += 1 * invert_flag
@@ -614,15 +696,14 @@ class Chatbot:
         ratingsList = []
 
         for i in range(len(user_ratings)):
-            # If user has already rated this movie, continue bc we don't want to recommend something he/she
-            # has already seen
-            if user_ratings[i] != 0:
+            # If user has already rated this movie or we have already recommended this movie, continue
+            if user_ratings[i] != 0 or i in self.already_recommended:
                 continue
             rating = np.dot(np.array([0 if movieRating == 0 else self.similarity(ratings_matrix[i], ratings_matrix[j]) for j, movieRating in enumerate(user_ratings)]), user_ratings)
             ratingsList.append((rating, i))
             
         ratingsList.sort(reverse=True)
-        recommendations = [pair[1] for pair in ratingsList[:k]]      
+        recommendations = [pair[1] for pair in ratingsList[:k+1]]      
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
