@@ -31,7 +31,7 @@ class Chatbot:
         #############################################################################
 
         # Binarize the movie ratings before storing the binarized matrix.
-        self.ratings = ratings
+        self.ratings = self.binarize(ratings)
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -246,7 +246,7 @@ class Chatbot:
         partsList.append(year)
         print(partsList)
 
-        formerTitle = title    # Used in case the particle isn't pushed to the end of title
+        formerTitle = title    # Necessary in case the particle isn't pushed to the end of title
 
         # Construct newly formatted title by various cases
         if partsList[0] and partsList[2]:
