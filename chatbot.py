@@ -121,14 +121,40 @@ class Chatbot:
                         response = "Sorry I don't know that movie"
             # response = "I processed {} in starter mode!!".format(line)
         else:
-            movie_titles= self.extract_titles(line)
+            movie_titles = self.extract_titles(line)
+
+            # Extracted multiple candidate movie titles from the line (basic mode doesn't handle this)
             if len(movie_titles) > 1:
                 return "Please tell me about one movie at a time. Go ahead."
+
+            # Extracted no candidate movie titles at all from the line
             elif len(movie_titles) == 0:
                 return "Sorry, I don't understand. Tell me about a movie that you have seen."
+
+            # Extracted exactly one candidate movie title from the line
             else:
-                self.find_movies_by_title(movie_titles[0])
-                self.extract_sentiment(line)
+                title = movie_titles[0]
+                movie_indices = self.find_movies_by_title(movie_titles[0])
+
+                if len(movie_indices) == 0:         # If no valid movies were found from the title
+                    return "Sorry, I've never heard of a movie called \"{}\". Please tell me about another movie you liked.".format(title)
+
+                elif len(movie_indices) > 1:        # If multiple valid movies were fround from the title
+                    return "I found more than one movie called \"{}\". Can you please clarify?".format(title)
+                    return response
+
+                else:                               # Exactly one valid movie was found from the title
+                    sentiment = self.extract_sentiment(line)
+
+                    if sentiment == 0:              # Neutral sentiment
+                        return "I'm sorry, I'm not sure if you liked \"{}\". Tell me more about it.".format(title)
+                    elif sentiment > 0:
+                        # Do something
+                        return "OK, you liked \"{}\"! Tell me what you thought of another movie.".format(title)
+                    else:   # sentiment < 0
+                        # Do something
+                        return "OK, you didn't like \"{}\"... Tell me what you thought of another movie.".format(title)
+
 
 
                 response = "I processed {} in creative mode!!".format(line)
