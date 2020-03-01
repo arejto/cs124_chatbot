@@ -147,17 +147,13 @@ class Chatbot:
                 return "Please tell me about one movie at a time. Go ahead."
 
             elif len(movie_titles) == 0:     # Extracted no candidate movie titles at all from the line
-            ##########NEED TO TEST THIS FUNCTION!!!#########
                 # If the user's input text has the word recommend, assume they are asking for a recommendation 
                 if line.lower().find('recommend') != -1 and len(self.movies_processed) < 5:     
                     return "Before I make any recommendations, I need to learn more about your preferences. Please tell me about another movie you liked."
+                
                 elif line.lower().find('recommend') != -1 and len(self.movies_processed) >= 5:
                     return self.giveRecommendation()
-                    # if len(self.recommendations) == 0:
-                    #     self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
-                    # self.ASKED_FOR_REC = True
-                    # return "OK, given what you have told me, I think that you might like \"{}\". Would you like another recommendation?".format(self.titles[self.recommendations.popleft()])
-            ################################################
+
                 else: # Otherwise, our chatbot is unable to process the user's message.
                     return "Sorry, I don't understand. Tell me about a movie that you have seen."
 
@@ -174,6 +170,7 @@ class Chatbot:
         #                             END OF YOUR CODE                              #
         #############################################################################
         return response
+
 
     def generateResponseStarter(self, title, movie_indices, line):
         """Generate an appropriate chatbot response given a title, list of movie indices, and an input line
@@ -206,6 +203,7 @@ class Chatbot:
                 self.user_ratings[movie_index] = sentiment
                 self.movies_processed.add(movie_index)
                 if len(self.movies_processed) >= 5:
+                    self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
                     if sentiment > 0:
                         return("Got it, you liked \"{}\"! Let me think...".format(title) + self.giveRecommendation())
                     else:   # sentiment < 0
@@ -216,15 +214,20 @@ class Chatbot:
                     return "OK, so you didn't like \"{}\"! Tell me what you thought of another movie.".format(title)
 
     def giveRecommendation(self):
+        """ Returns a message giving a single recommendation based on the data points already received
+
+        This only recommends movies which have not previously been recommended. If the current list of recommended movies is 
+        exhausted, we grab (a default of) the next 10 best recommendations and store that in self.recommendations
+        """
         if len(self.recommendations) == 0:
             self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
-        self.ASKED_FOR_REC = True
         next_recommendation = self.recommendations.popleft()
-        while next_recommendation in self.already_recommended:
-            next_recommendation = self.recommendations.popleft()
-            if len(self.recommendations) == 0:
-                self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
+        # while next_recommendation in self.already_recommended:
+        #     next_recommendation = self.recommendations.popleft()
+        #     if len(self.recommendations) == 0:
+        #         self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
         self.already_recommended.add(next_recommendation)
+        self.ASKED_FOR_REC = True
         return "OK, given what you have told me, I think that you might like \"{}\". Would you like another recommendation?".format(self.titles[next_recommendation][0])
             
 
@@ -703,7 +706,7 @@ class Chatbot:
             ratingsList.append((rating, i))
             
         ratingsList.sort(reverse=True)
-        recommendations = [pair[1] for pair in ratingsList[:k+1]]      
+        recommendations = [pair[1] for pair in ratingsList[:k]]      
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
