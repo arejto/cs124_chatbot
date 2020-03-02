@@ -189,6 +189,7 @@ class Chatbot:
         articles = ['a', 'an', 'the', 'la', 'le', "l'", 'les']
         #print(title.split())
         words = title.split()
+        new_title = title
         if words[0].lower() in articles:
             #print("hiii")
             article = words[0]
@@ -216,6 +217,7 @@ class Chatbot:
         :returns: a list of indices of matching movies
         """
         if self.creative:
+            ids = []
             title = self.prune_article(title)
             for id, t in enumerate(self.titles):
                 # ignore capitalization
@@ -308,7 +310,7 @@ class Chatbot:
         """
         #print(self.sentiment)
         #print(self.sentiment['unspeakable'])
-        print(preprocessed_input)
+        # print(preprocessed_input)
         words = re.sub("\".*?\"", "", preprocessed_input)
         words = words.split()
         words = preprocessed_input.split()
@@ -346,13 +348,13 @@ class Chatbot:
                     else:
                         negWordCount += 1
         if posWordCount > negWordCount:
-            print("positive")
+            # print("positive")
             return 1
         if posWordCount < negWordCount:
-            print("negative")
+            # print("negative")
             return -1
         if posWordCount == negWordCount:
-            print("neutral")
+            # print("neutral")
             return 0
 
 
