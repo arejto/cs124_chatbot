@@ -109,6 +109,7 @@ class Chatbot:
         # it is highly recommended.                                                 #
         #############################################################################
         # yes_phrases = set(['yes', 'yea', 'yeah', 'sure', 'yup', 'ok', 'okay'])
+
         yes_re = '.*(yes|yea|yeah|sure|yup|ok).*' 
         no_re = '.*(no|nah|negative).*'
         # no_phrases = set(['no', 'nope', 'nah', 'negative'])
@@ -134,6 +135,10 @@ class Chatbot:
                         response = "Sorry I don't know that movie"
             # response = "I processed {} in starter mode!!".format(line)
         else:                   # STARTER MODE
+            # If every movie in my database has been processed, say so
+            if len(self.movies_processed) == len(self.user_ratings):
+                return "Oh no, it seems as though I have already given you a recommendation to see every movie in my database that you haven't already seen. If you want new recommendations, please exit the program by typing \':quit\' and we can start fresh!"
+
             if self.ASKED_FOR_REC:  # Expecting some variation of 'yes' or 'no' as an answer
                 if re.match(yes_re, line.lower()):
                     return self.giveRecommendation()
@@ -157,15 +162,12 @@ class Chatbot:
                     return self.giveRecommendation()
 
                 else: # Otherwise, our chatbot is unable to process the user's message.
-                    return "Sorry, I don't understand. Tell me about a movie that you have seen."
+                    return "Sorry, I don't understand. I can only talk about movies. Tell me about a movie that you have seen."
 
             else:                            # Extracted exactly one candidate movie title from the line
                 title = movie_titles[0]
                 movie_indices = self.find_movies_by_title(movie_titles[0])
                 response = self.generateResponseStarter(title, movie_indices, line)
-
-                # IF RESPONSE IS SOMEHOW INVALID, RETURN SOME GENERAL RESPONSE
-
                 return response
 
         #############################################################################
@@ -230,13 +232,16 @@ class Chatbot:
         #     next_recommendation = self.recommendations.popleft()
         #     if len(self.recommendations) == 0:
         #         self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
+        self.movies_processed.add(next_recommendation)
         self.already_recommended.add(next_recommendation)
         self.ASKED_FOR_REC = True
         return self.generateRecResponse(self.titles[next_recommendation][0])
-        # return "OK, given what you have told me, I think that you might like \"{}\". Would you like another recommendation?".format(self.titles[next_recommendation][0])
             
 
-    def generateRecResponse(self, movieTitle):    # TO COMPLETE
+    def generateRecResponse(self, movieTitle):
+        """ Returns a recommendation response, which is constructed through a variety of random choices
+        of phrases among different categories representing parts of the sentence.
+        """
         startPhrases =  ["Ok", "Alright", "Well", "Got it", "Ah yes", "Ah hah"]
         punctuation =   [", ", "! ", "--", ". "]
         recPhrases =    ["given what you have told me, I think that you might like \"{}\". ".format(movieTitle),
@@ -657,16 +662,21 @@ class Chatbot:
         # matrix directly in this function.                                         #
         #############################################################################
 
-        # The starter code returns a new matrix shaped like ratings but full of zeros.
         binarized_ratings = np.zeros_like(ratings)
-        for row in range(len(ratings)):
-            for col in range(len(ratings[0])):
-                if ratings[row][col] == 0:
-                    continue
-                if ratings[row][col] > threshold:
-                    binarized_ratings[row][col] = 1
-                else:
-                    binarized_ratings[row][col] = -1
+        binarized_ratings = np.where(ratings > threshold, 1, binarized_ratings)
+        binarized_ratings = np.where(ratings <= threshold, -1, binarized_ratings)
+        binarized_ratings = np.where(ratings == 0, 0, binarized_ratings)
+        return binarized_ratings
+
+        # binarized_ratings = np.zeros_like(ratings)
+        # for row in range(len(ratings)):
+        #     for col in range(len(ratings[0])):
+        #         if ratings[row][col] == 0:
+        #             continue
+        #         if ratings[row][col] > threshold:
+        #             binarized_ratings[row][col] = 1
+        #         else:
+        #             binarized_ratings[row][col] = -1
 
         #############################################################################
         #                             END OF YOUR CODE                              #
