@@ -8,6 +8,7 @@ import numpy as np
 import re
 import math
 import collections
+import random
 from PorterStemmer import PorterStemmer
 
 # noinspection PyMethodMayBeStatic
@@ -186,7 +187,7 @@ class Chatbot:
         Once we have processed >= 5 data points, the chatbot begins to offer recommendations to the user using the
         self.recommend function.
         """
-        response = "Please tell me more about your movie preferences" # placeholder
+        response = "I didn't catch that--please tell me more about your movie preferences." # placeholder
 
         if len(movie_indices) == 0:         # If no valid movies were found from the title
             return "Sorry, I've never heard of a movie called \"{}\". Please tell me about another movie you liked.".format(title)
@@ -209,11 +210,12 @@ class Chatbot:
                     if sentiment > 0:
                         return("Got it, you liked \"{}\"! Let me think...".format(title) + self.giveRecommendation())
                     else:   # sentiment < 0
-                        return("I see, you didn't liked \"{}\". Let me think...".format(title) + self.giveRecommendation())
+                        return("I see, you didn't like \"{}\". Let me think...".format(title) + self.giveRecommendation())
                 if sentiment > 0:
                     return "OK, you liked \"{}\"! Tell me what you thought of another movie.".format(title)
                 else:   # sentiment < 0
                     return "OK, so you didn't like \"{}\"! Tell me what you thought of another movie.".format(title)
+        return response
 
     def giveRecommendation(self):
         """ Returns a message giving a single recommendation based on the data points already received
@@ -230,8 +232,35 @@ class Chatbot:
         #         self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
         self.already_recommended.add(next_recommendation)
         self.ASKED_FOR_REC = True
-        return "OK, given what you have told me, I think that you might like \"{}\". Would you like another recommendation?".format(self.titles[next_recommendation][0])
+        return self.generateRecResponse(self.titles[next_recommendation][0])
+        # return "OK, given what you have told me, I think that you might like \"{}\". Would you like another recommendation?".format(self.titles[next_recommendation][0])
             
+
+    def generateRecResponse(self, movieTitle):    # TO COMPLETE
+        startPhrases =  ["Ok", "Alright", "Well", "Got it", "Ah yes", "Ah hah"]
+        punctuation =   [", ", "! ", "--", ". "]
+        recPhrases =    ["given what you have told me, I think that you might like \"{}\". ".format(movieTitle),
+                         "based on your preferences, I would recommend \"{}\". ".format(movieTitle),
+                         "from our conversation, I have a good feeling that you will enjoy \"{}\". ".format(movieTitle),
+                         "I know just the movie for you. You should check out \"{}\"! ".format(movieTitle),
+                         "in my opinion, you would certainly find \"{}\" to be quite amusing. ".format(movieTitle),
+                         "I have been listening very carefully, and I believe you would love watching \"{}\". ".format(movieTitle),
+                         "there are so many great movies out there, but I think \"{}\" would be the perfect one for you. ".format(movieTitle)]
+        optMovie = ["movie ", ""]
+        recSynonymns = ["recommendation", "suggestion", "option"]
+        askPhrases =    ["Would you like another {}{}?".format(random.choice(optMovie), random.choice(recSynonymns)),
+                         "Shall I give you another {}{}?".format(random.choice(optMovie), random.choice(recSynonymns)),
+                         "If you'd like another {}{}, just say \'yes\'and I'll pick one out for you!".format(random.choice(optMovie), random.choice(recSynonymns)),
+                         "Do you want another {}{}?".format(random.choice(optMovie), random.choice(recSynonymns)),
+                         "Can I provide you with another {}{} at this time?".format(random.choice(optMovie), random.choice(recSynonymns)),
+                         "That's just one {}{}, but I have plenty more for you. Do you want another one now?".format(random.choice(optMovie), random.choice(recSynonymns)),
+                         "Can I interest you in another {}{}?".format(random.choice(optMovie), random.choice(recSynonymns))]
+        punct_choice = random.choice(punctuation)
+        if punct_choice == ". " or punct_choice == "! ":
+            rec_phrase = random.choice(recPhrases)
+            rec_phrase = rec_phrase[0].upper() + rec_phrase[1:]
+            return random.choice(startPhrases) + punct_choice + rec_phrase + random.choice(askPhrases)
+        return random.choice(startPhrases) + punct_choice + random.choice(recPhrases) + random.choice(askPhrases)
 
 
     @staticmethod
