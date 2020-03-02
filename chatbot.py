@@ -289,6 +289,7 @@ class Chatbot:
         articles = ['a', 'an', 'the', 'la', 'le', "l'", 'les']
         #print(title.split())
         words = title.split()
+        new_title = title
         if words[0].lower() in articles:
             #print("hiii")
             article = words[0]
@@ -316,6 +317,7 @@ class Chatbot:
         :returns: a list of indices of matching movies
         """
         if self.creative:
+            ids = []
             title = self.prune_article(title)
             for id, t in enumerate(self.titles):
                 # ignore capitalization
