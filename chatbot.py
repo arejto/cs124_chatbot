@@ -759,16 +759,6 @@ class Chatbot:
         binarized_ratings = np.where(ratings == 0, 0, binarized_ratings)
         return binarized_ratings
 
-        # binarized_ratings = np.zeros_like(ratings)
-        # for row in range(len(ratings)):
-        #     for col in range(len(ratings[0])):
-        #         if ratings[row][col] == 0:
-        #             continue
-        #         if ratings[row][col] > threshold:
-        #             binarized_ratings[row][col] = 1
-        #         else:
-        #             binarized_ratings[row][col] = -1
-
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
