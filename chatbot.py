@@ -701,6 +701,7 @@ class Chatbot:
         # Create a dense array containing movie ratings from user, keeping track of their indices.
         rated_movies = []
         dense_user_ratings = []
+        print('ok')
 
         for i, rating in enumerate(user_ratings):
             if rating != 0:
