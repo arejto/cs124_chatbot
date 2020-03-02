@@ -179,7 +179,7 @@ class Chatbot:
                     return "I'm sorry, but I didn't quite understand your answer to my question. Would you like more recommendations--yes or no?"
 
             ## SPELL CHECK LOGIC
-            if self.SPELL_CHECK_FLAG:
+            if self.SPELL_CHECK_FLAG: # Expecting some variation of 'yes' or 'no' as an answer
                 if re.match(yes_re, line.lower()):
                     response = self.generate_sentiment_response(self.sentiment_last_line, self.titles[self.candidates[0]][0], self.candidates[0])
                     self.sentiment_last_line = 0
@@ -187,7 +187,7 @@ class Chatbot:
                 elif re.match(no_re, line.lower()):
                     response = "{}{} {}{}".format(random.choice(self.affirmation_list), random.choice(self.punctuation_list), random.choice(self.more_movies_phrases), random.choice(self.punctuation_list))
                 else:
-                    return "I'm sorry, but I didn't quite understand your answer to my question. Did you mean %s -- yes or no?" % self.titles[close_spellings[0]][0]
+                    return "I'm sorry, but I didn't quite understand your answer to my question. Did you mean %s -- yes or no?" % self.titles[self.candidates[0]][0]
 
                 self.SPELL_CHECK_FLAG = False
                 return response
