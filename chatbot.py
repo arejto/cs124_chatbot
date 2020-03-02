@@ -8,6 +8,7 @@ import numpy as np
 import re
 import math
 import collections
+import random
 from PorterStemmer import PorterStemmer
 
 # noinspection PyMethodMayBeStatic
@@ -44,10 +45,23 @@ class Chatbot:
         self.ratings = self.binarize(ratings)
 
         self.user_ratings = np.zeros(len(self.ratings))
+        self.rated_indices = []
         self.movies_processed = set([])
         self.already_recommended = set([])
         self.recommendations = collections.deque([])
         self.ASKED_FOR_REC = False
+
+        # Lists used to generate varied responses
+        self.affirmation_list = ['Ok', 'Got it', 'Sounds good', 'Great', 'Alright']
+        self.punctuation_list = ['.', '!']
+        self.more_movies_phrases = ['Let\'s talk about more movies you\'ve watched', 
+                                    'Tell me more about some movies you have seen', 
+                                    'I would love to hear more about some movies you have watched',
+                                    'It\'s time to get back to talking about movies you\'ve watched']
+        self.optMovie = ["movie ", ""]
+        self.recSynonymns = ["recommendation", "suggestion", "option"]
+        # End of lists used to generate varied responses
+
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -138,6 +152,7 @@ class Chatbot:
         # it is highly recommended.                                                 #
         #############################################################################
         # yes_phrases = set(['yes', 'yea', 'yeah', 'sure', 'yup', 'ok', 'okay'])
+
         yes_re = '.*(yes|yea|yeah|sure|yup|ok).*' 
         no_re = '.*(no|nah|negative).*'
         # no_phrases = set(['no', 'nope', 'nah', 'negative'])
@@ -201,12 +216,16 @@ class Chatbot:
 
             # response = "I processed {} in starter mode!!".format(line)
         else:                   # STARTER MODE
+            # If every movie in my database has been processed, say so
+            if len(self.movies_processed) == len(self.user_ratings):
+                return "Oh no, it seems as though I have already given you a recommendation to watch every movie in my database that you haven't already seen. If you want new recommendations, please exit the program by typing \':quit\' and we can start fresh!"
+
             if self.ASKED_FOR_REC:  # Expecting some variation of 'yes' or 'no' as an answer
                 if re.match(yes_re, line.lower()):
                     return self.giveRecommendation()
                 elif re.match(no_re, line.lower()):
                     self.ASKED_FOR_REC = False
-                    return "Ok. Let's talk about more movies!"
+                    return "{}{} {}{}".format(random.choice(self.affirmation_list), random.choice(self.punctuation_list), random.choice(self.more_movies_phrases), random.choice(self.punctuation_list))
                 else:
                     return "I'm sorry, but I didn't quite understand your answer to my question. Would you like more recommendations--yes or no?"
 
@@ -224,15 +243,12 @@ class Chatbot:
                     return self.giveRecommendation()
 
                 else: # Otherwise, our chatbot is unable to process the user's message.
-                    return "Sorry, I don't understand. Tell me about a movie that you have seen."
+                    return "Sorry, I don't understand. I can only talk about movies. Tell me about a movie that you have seen."
 
             else:                            # Extracted exactly one candidate movie title from the line
                 title = movie_titles[0]
                 movie_indices = self.find_movies_by_title(movie_titles[0])
                 response = self.generateResponseStarter(title, movie_indices, line)
-
-                # IF RESPONSE IS SOMEHOW INVALID, RETURN SOME GENERAL RESPONSE
-
                 return response
 
         #############################################################################
@@ -270,7 +286,7 @@ class Chatbot:
         Once we have processed >= 5 data points, the chatbot begins to offer recommendations to the user using the
         self.recommend function.
         """
-        response = "Please tell me more about your movie preferences" # placeholder
+        response = "I didn't catch that--please tell me more about your movie preferences." # placeholder
 
         if len(movie_indices) == 0:         # If no valid movies were found from the title
             return "Sorry, I've never heard of a movie called \"{}\". Please tell me about another movie you liked.".format(title)
@@ -281,7 +297,9 @@ class Chatbot:
         else:                               # Exactly one valid movie was found from the title
             movie_index = movie_indices[0]
             sentiment = self.extract_sentiment(line)
-            self.generate_sentiment_response(sentiment, title, movie_index)
+            response = self.generate_sentiment_response(sentiment, title, movie_index)
+        
+        return response
 
     def giveRecommendation(self):
         """ Returns a message giving a single recommendation based on the data points already received
@@ -296,10 +314,39 @@ class Chatbot:
         #     next_recommendation = self.recommendations.popleft()
         #     if len(self.recommendations) == 0:
         #         self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
+        self.movies_processed.add(next_recommendation)
         self.already_recommended.add(next_recommendation)
         self.ASKED_FOR_REC = True
-        return "OK, given what you have told me, I think that you might like \"{}\". Would you like another recommendation?".format(self.titles[next_recommendation][0])
+        return self.generateRecResponse(self.titles[next_recommendation][0])
             
+
+    def generateRecResponse(self, movieTitle):
+        """ Returns a recommendation response, which is constructed through a variety of random choices
+        of phrases among different categories representing parts of the sentence.
+        """
+        startPhrases =  ["Ok", "Alright", "Well", "Got it", "Ah yes", "Ah hah"]
+        punctuation =   [", ", "! ", "--", ". "]
+        recPhrases =    ["given what you have told me, I think that you might like \"{}\". ".format(movieTitle),
+                         "based on your preferences, I would recommend \"{}\". ".format(movieTitle),
+                         "from our conversation, I have a good feeling that you will enjoy \"{}\". ".format(movieTitle),
+                         "I know just the movie for you. You should check out \"{}\"! ".format(movieTitle),
+                         "in my opinion, you would certainly find \"{}\" to be quite amusing. ".format(movieTitle),
+                         "I have been listening very carefully, and I believe you would love watching \"{}\". ".format(movieTitle),
+                         "there are so many great movies out there, but I think \"{}\" would be the perfect one for you. ".format(movieTitle)]
+
+        askPhrases =    ["Would you like another {}{}?".format(random.choice(self.optMovie), random.choice(self.recSynonymns)),
+                         "Shall I give you another {}{}?".format(random.choice(self.optMovie), random.choice(self.recSynonymns)),
+                         "If you'd like another {}{}, just say \'yes\'and I'll pick one out for you!".format(random.choice(self.optMovie), random.choice(self.recSynonymns)),
+                         "Do you want another {}{}?".format(random.choice(self.optMovie), random.choice(self.recSynonymns)),
+                         "Can I provide you with another {}{} at this time?".format(random.choice(self.optMovie), random.choice(self.recSynonymns)),
+                         "That's just one {}{}, but I have plenty more for you. Do you want another one now?".format(random.choice(self.optMovie), random.choice(self.recSynonymns)),
+                         "Can I interest you in another {}{}?".format(random.choice(self.optMovie), random.choice(self.recSynonymns))]
+        punct_choice = random.choice(punctuation)
+        if punct_choice == ". " or punct_choice == "! ":
+            rec_phrase = random.choice(recPhrases)
+            rec_phrase = rec_phrase[0].upper() + rec_phrase[1:]
+            return random.choice(startPhrases) + punct_choice + rec_phrase + random.choice(askPhrases)
+        return random.choice(startPhrases) + punct_choice + random.choice(recPhrases) + random.choice(askPhrases)
 
 
     @staticmethod
@@ -706,16 +753,21 @@ class Chatbot:
         # matrix directly in this function.                                         #
         #############################################################################
 
-        # The starter code returns a new matrix shaped like ratings but full of zeros.
         binarized_ratings = np.zeros_like(ratings)
-        for row in range(len(ratings)):
-            for col in range(len(ratings[0])):
-                if ratings[row][col] == 0:
-                    continue
-                if ratings[row][col] > threshold:
-                    binarized_ratings[row][col] = 1
-                else:
-                    binarized_ratings[row][col] = -1
+        binarized_ratings = np.where(ratings > threshold, 1, binarized_ratings)
+        binarized_ratings = np.where(ratings <= threshold, -1, binarized_ratings)
+        binarized_ratings = np.where(ratings == 0, 0, binarized_ratings)
+        return binarized_ratings
+
+        # binarized_ratings = np.zeros_like(ratings)
+        # for row in range(len(ratings)):
+        #     for col in range(len(ratings[0])):
+        #         if ratings[row][col] == 0:
+        #             continue
+        #         if ratings[row][col] > threshold:
+        #             binarized_ratings[row][col] = 1
+        #         else:
+        #             binarized_ratings[row][col] = -1
 
         #############################################################################
         #                             END OF YOUR CODE                              #
@@ -776,15 +828,23 @@ class Chatbot:
         # with cosine similarity, no mean-centering, and no normalization of scores.          #
         #######################################################################################
 
-        # Populate this list with k movie indices to recommend to the user.
+        # Create a dense array containing movie ratings from user, keeping track of their indices.
+        rated_movies = []
+        dense_user_ratings = []
+
+        for i, rating in enumerate(user_ratings):
+            if rating != 0:
+                rated_movies.append(i)
+                dense_user_ratings.append(rating)
+
+        # Predict ratings based on movie similarities
         recommendations = []
         ratingsList = []
-
         for i in range(len(user_ratings)):
             # If user has already rated this movie or we have already recommended this movie, continue
             if user_ratings[i] != 0 or i in self.already_recommended:
                 continue
-            rating = np.dot(np.array([0 if movieRating == 0 else self.similarity(ratings_matrix[i], ratings_matrix[j]) for j, movieRating in enumerate(user_ratings)]), user_ratings)
+            rating = np.dot(np.array([self.similarity(ratings_matrix[i], ratings_matrix[j]) for j in rated_movies]), dense_user_ratings)
             ratingsList.append((rating, i))
             
         ratingsList.sort(reverse=True)
