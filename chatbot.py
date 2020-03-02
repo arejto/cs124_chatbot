@@ -46,6 +46,18 @@ class Chatbot:
         self.already_recommended = set([])
         self.recommendations = collections.deque([])
         self.ASKED_FOR_REC = False
+
+        # Lists used to generate varied responses
+        self.affirmation_list = ['Ok', 'Got it', 'Sounds good', 'Great', 'Alright']
+        self.punctuation_list = ['.', '!']
+        self.more_movies_phrases = ['Let\'s talk about more movies you\'ve watched', 
+                                    'Tell me more about some movies you have seen', 
+                                    'I would love to hear more about some movies you have watched',
+                                    'It\'s time to get back to talking about movies you\'ve watched']
+        self.optMovie = ["movie ", ""]
+        self.recSynonymns = ["recommendation", "suggestion", "option"]
+        # End of lists used to generate varied responses
+
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -137,14 +149,14 @@ class Chatbot:
         else:                   # STARTER MODE
             # If every movie in my database has been processed, say so
             if len(self.movies_processed) == len(self.user_ratings):
-                return "Oh no, it seems as though I have already given you a recommendation to see every movie in my database that you haven't already seen. If you want new recommendations, please exit the program by typing \':quit\' and we can start fresh!"
+                return "Oh no, it seems as though I have already given you a recommendation to watch every movie in my database that you haven't already seen. If you want new recommendations, please exit the program by typing \':quit\' and we can start fresh!"
 
             if self.ASKED_FOR_REC:  # Expecting some variation of 'yes' or 'no' as an answer
                 if re.match(yes_re, line.lower()):
                     return self.giveRecommendation()
                 elif re.match(no_re, line.lower()):
                     self.ASKED_FOR_REC = False
-                    return "Ok. Let's talk about more movies!"
+                    return "{}{} {}{}".format(random.choice(self.affirmation_list), random.choice(self.punctuation_list), random.choice(self.more_movies_phrases), random.choice(self.punctuation_list))
                 else:
                     return "I'm sorry, but I didn't quite understand your answer to my question. Would you like more recommendations--yes or no?"
 
@@ -251,15 +263,14 @@ class Chatbot:
                          "in my opinion, you would certainly find \"{}\" to be quite amusing. ".format(movieTitle),
                          "I have been listening very carefully, and I believe you would love watching \"{}\". ".format(movieTitle),
                          "there are so many great movies out there, but I think \"{}\" would be the perfect one for you. ".format(movieTitle)]
-        optMovie = ["movie ", ""]
-        recSynonymns = ["recommendation", "suggestion", "option"]
-        askPhrases =    ["Would you like another {}{}?".format(random.choice(optMovie), random.choice(recSynonymns)),
-                         "Shall I give you another {}{}?".format(random.choice(optMovie), random.choice(recSynonymns)),
-                         "If you'd like another {}{}, just say \'yes\'and I'll pick one out for you!".format(random.choice(optMovie), random.choice(recSynonymns)),
-                         "Do you want another {}{}?".format(random.choice(optMovie), random.choice(recSynonymns)),
-                         "Can I provide you with another {}{} at this time?".format(random.choice(optMovie), random.choice(recSynonymns)),
-                         "That's just one {}{}, but I have plenty more for you. Do you want another one now?".format(random.choice(optMovie), random.choice(recSynonymns)),
-                         "Can I interest you in another {}{}?".format(random.choice(optMovie), random.choice(recSynonymns))]
+
+        askPhrases =    ["Would you like another {}{}?".format(random.choice(self.optMovie), random.choice(self.recSynonymns)),
+                         "Shall I give you another {}{}?".format(random.choice(self.optMovie), random.choice(self.recSynonymns)),
+                         "If you'd like another {}{}, just say \'yes\'and I'll pick one out for you!".format(random.choice(self.optMovie), random.choice(self.recSynonymns)),
+                         "Do you want another {}{}?".format(random.choice(self.optMovie), random.choice(self.recSynonymns)),
+                         "Can I provide you with another {}{} at this time?".format(random.choice(self.optMovie), random.choice(self.recSynonymns)),
+                         "That's just one {}{}, but I have plenty more for you. Do you want another one now?".format(random.choice(self.optMovie), random.choice(self.recSynonymns)),
+                         "Can I interest you in another {}{}?".format(random.choice(self.optMovie), random.choice(self.recSynonymns))]
         punct_choice = random.choice(punctuation)
         if punct_choice == ". " or punct_choice == "! ":
             rec_phrase = random.choice(recPhrases)
