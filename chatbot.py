@@ -114,11 +114,12 @@ class Chatbot:
         import random
         options = ["Hm, that's not really what I want to talk about right now, let's go back to movies",
                     "Ok, got it.",
-                    "I'm getting bored with this. Let's chat about movies."]
+                    "I'm getting bored with this. Let's chat about movies.",
+                    "Sorry, I don't understand. I can only talk about movies. Tell me about a movie that you have seen."]
 
         if line.lower().startswith('can you'):
             return 'Unfortunately the only thing I can do is talk about movies. I am a movie chatbot after all.'
-        elif line.lower().startswith('what is'):
+        elif line.lower().startswith('what is') or line.lower().startswith("what's"):
             return "Unfortunately I don't know what that is. I am a movie chatbot after all."
 
         return options[int(random.random() * len(options))]
@@ -126,6 +127,15 @@ class Chatbot:
     ###############################################################################
     # 2. Modules 2 and 3: extraction and transformation                           #
     ###############################################################################
+    def no_movies_found(self, line):
+        if line.lower().find('recommend') != -1 and len(self.movies_processed) < 5:     
+            return "Before I make any recommendations, I need to learn more about your preferences. Please tell me about another movie you liked."
+        
+        elif line.lower().find('recommend') != -1 and len(self.movies_processed) >= 5:
+            return self.giveRecommendation()
+
+        else: # Otherwise, our chatbot is unable to process the user's message.
+            return self.do_not_understand(line)
 
     def process(self, line):
         """Process a line of input from the REPL and generate a response.
@@ -151,22 +161,36 @@ class Chatbot:
         # possibly calling other functions. Although modular code is not graded,    #
         # it is highly recommended.                                                 #
         #############################################################################
-        # yes_phrases = set(['yes', 'yea', 'yeah', 'sure', 'yup', 'ok', 'okay'])
-
         yes_re = '.*(yes|yea|yeah|sure|yup|ok).*' 
         no_re = '.*(no|nah|negative).*'
-        # no_phrases = set(['no', 'nope', 'nah', 'negative'])
-        response = self.do_not_understand(line)
+
+        too_many_movies_response = "Please tell me about one movie at a time. Go ahead."
         if self.creative:       # CREATIVE MODE
+            if len(self.movies_processed) == len(self.user_ratings):
+                return "Oh no, it seems as though I have already given you a recommendation to watch every movie in my database that you haven't already seen. If you want new recommendations, please exit the program by typing \':quit\' and we can start fresh!"
+
+            if self.ASKED_FOR_REC:  # Expecting some variation of 'yes' or 'no' as an answer
+                if re.match(yes_re, line.lower()):
+                    return self.giveRecommendation()
+                elif re.match(no_re, line.lower()):
+                    self.ASKED_FOR_REC = False
+                    return "{}{} {}{}".format(random.choice(self.affirmation_list), random.choice(self.punctuation_list), random.choice(self.more_movies_phrases), random.choice(self.punctuation_list))
+                else:
+                    return "I'm sorry, but I didn't quite understand your answer to my question. Would you like more recommendations--yes or no?"
+
             ## SPELL CHECK LOGIC
             if self.SPELL_CHECK_FLAG:
-                if line == 'yes':
+                if re.match(yes_re, line.lower()):
                     response = self.generate_sentiment_response(self.sentiment_last_line, self.titles[self.candidates[0]][0], self.candidates[0])
                     self.sentiment_last_line = 0
                     self.candidates = None
+                elif re.match(no_re, line.lower()):
+                    response = "{}{} {}{}".format(random.choice(self.affirmation_list), random.choice(self.punctuation_list), random.choice(self.more_movies_phrases), random.choice(self.punctuation_list))
                 else:
-                    response = "What did you like?"
+                    return "I'm sorry, but I didn't quite understand your answer to my question. Did you mean %s -- yes or no?" % self.titles[close_spellings[0]][0]
+
                 self.SPELL_CHECK_FLAG = False
+                return response
 
             if self.DISAMBIGUATE_FLAG:
                 disambiguated = self.disambiguate(clarification=line, candidates=self.candidates)
@@ -178,8 +202,9 @@ class Chatbot:
                     response = 'Sorry I don"t know that'
                     self.DISAMBIGUATE_FLAG = False
                 else: # len(disambiguated) >= 1
-                    response = 'Which one do you mean? ' + '\n'.join(np.array(self.titles)[disambiguated, 0])
+                    response = 'Which one do you mean? \n' + '\n'.join(np.array(self.titles)[disambiguated, 0])
                     ## TODO: risk of loop
+                return response
 
             movie_titles = self.extract_titles(line)
             # find movies by title
@@ -190,7 +215,6 @@ class Chatbot:
                 if possible_movies == []:
                     close_spellings = self.find_movies_closest_to_title(movie_titles[0])
                     self.candidates = close_spellings
-                    print (close_spellings)
                     if len(close_spellings) == 1:
                         spell_check_guess = ''.join(np.array(self.titles)[close_spellings, 0])
                         response = "Did you mean " + spell_check_guess + "? Answer 'yes' or 'no'!"
@@ -203,16 +227,20 @@ class Chatbot:
                     self.sentiment_last_line = self.extract_sentiment(line)
                     self.candidates = possible_movies
                     text = np.array(self.titles)[possible_movies, 0]
-                    response = 'Did you mean ' + '\n'.join(text)
+                    response = 'Which one do you mean? \n' + '\n'.join(text)
                     self.DISAMBIGUATE_FLAG = True
 
-                else: # len(possible movies) == 0
-                    response = ''
+                else: # len(possible movies) == 1!!!
+                    title = movie_titles[0]
+                    movie_indices = self.find_movies_by_title(movie_titles[0])
+                    response = self.generateResponseStarter(title, movie_indices, line)
+                    return response
+
             elif len(movie_titles) == 0:
-                pass 
-            
-            else:
-                pass
+                return self.no_movies_found(line)
+ 
+            else:  # Extracted multiple candidate movie titles from the line (our creative mode doesn't handle this)
+                return too_many_movies_response
 
             # response = "I processed {} in starter mode!!".format(line)
         else:                   # STARTER MODE
@@ -232,18 +260,10 @@ class Chatbot:
             movie_titles = self.extract_titles(line)
 
             if len(movie_titles) > 1:        # Extracted multiple candidate movie titles from the line (basic mode doesn't handle this)
-                return "Please tell me about one movie at a time. Go ahead."
+                return too_many_movies_response
 
             elif len(movie_titles) == 0:     # Extracted no candidate movie titles at all from the line
-                # If the user's input text has the word recommend, assume they are asking for a recommendation 
-                if line.lower().find('recommend') != -1 and len(self.movies_processed) < 5:     
-                    return "Before I make any recommendations, I need to learn more about your preferences. Please tell me about another movie you liked."
-                
-                elif line.lower().find('recommend') != -1 and len(self.movies_processed) >= 5:
-                    return self.giveRecommendation()
-
-                else: # Otherwise, our chatbot is unable to process the user's message.
-                    return "Sorry, I don't understand. I can only talk about movies. Tell me about a movie that you have seen."
+                return self.no_movies_found(line)
 
             else:                            # Extracted exactly one candidate movie title from the line
                 title = movie_titles[0]
@@ -398,31 +418,25 @@ class Chatbot:
         quotedFormat = '\"(.*?)\"'
         potential_titles = re.findall(quotedFormat, preprocessed_input)
 
-        words = preprocessed_input.split(' ')
-        if self.creative:
+        if self.creative and potential_titles == []:
+            words = preprocessed_input.split(' ')
             for i in range(len(words) + 1):
                 for j in range(i + 1, len(words) + 1):
                     possible_title = ' '.join(words[i:j])
                     possible_title = self.prune_article(possible_title)
                     if possible_title.lower() in self.english_titles_set:
-                        potential_titles.append(possible_title)
+                        potential_titles.append(possible_title.lower())
 
         return potential_titles
 
 
     def prune_article(self, title):
         articles = ['a', 'an', 'the', 'la', 'le', "l'", 'les']
-        #print(title.split())
         words = title.split()
         new_title = title
         if words[0].lower() in articles:
-            #print("hiii")
             article = words[0]
-            #print(article)
-
             new_title = title[len(article) + 1:] + ', ' + article
-            # title = title[len(article) + 1:]
-            # print(title)
         return new_title
 
     def find_movies_by_title(self, title):
@@ -448,11 +462,11 @@ class Chatbot:
                 # ignore capitalization
                 if t[0].lower().find(title.lower()) != -1:
                     next_char = t[0].lower().find(title.lower()) + len(title)
+                    previous_char = t[0].lower().find(title.lower()) - 1
                     # disambiguate!
-                    if next_char == len(t[0]) or not t[0][next_char].isalpha():
+                    if (next_char == len(t[0]) or not t[0][next_char].isalpha()) and (not t[0][previous_char].isalpha() or previous_char < 0):
                         ids.append(id)
 
-            # print (np.array(self.titles)[ids])
             return ids
             
         # Regex strings
@@ -688,8 +702,13 @@ class Chatbot:
         ids = []
         data = []
         filler_words = ['the', 'one']
+        punctuation = ['.', '!', '?','-']
         result_clarification = ' '.join([w for w in clarification.split() if w not in filler_words])
         
+        ## TODO: a bit hacky
+        if result_clarification[-1] in punctuation:
+            result_clarification = result_clarification[:-1]
+
         for cand in candidates:
             # grab only the movie title part. Drop the year and the final space space
             title = '('.join(self.titles[cand][0].split('(')[:-1])[:-1]
