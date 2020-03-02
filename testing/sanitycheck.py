@@ -119,6 +119,54 @@ def test_extract_titles():
         print('extract_titles() sanity check passed!')
     print()
 
+def test_extract_titles_creative():
+    print("Testing extract_titles() functionality...")
+    chatbot = Chatbot(True)
+
+    # add more test cases here!!!
+    test_cases = [
+        ('I liked "The Notebook"', ["The Notebook"]),
+        ('You are a great bot!', []),
+        ('I enjoyed "Titanic (1997)" and "Scream 2 (1997)"', ["Titanic (1997)", "Scream 2 (1997)"]),
+    ]
+
+    tests_passed = True
+    for input_text, expected_output in test_cases:
+        if not assertListEquals(
+            chatbot.extract_titles(chatbot.preprocess(input_text)),
+            expected_output,
+            "Incorrect output for extract_titles(chatbot.preprocess('{}')).".format(input_text)
+        ):
+            tests_passed = False
+    if tests_passed:
+        print('extract_titles() sanity check passed!')
+    print()
+
+def test_find_movies_by_title_creative():
+    print("Testing find_movies_by_title_creative() functionality...")
+    chatbot = Chatbot(True)
+
+    # add more test cases here!!!
+    test_cases = [
+        ('10 things i HATE about you', [2063]),
+        ('Se7en', [45]),
+        ('La Guerre du feu', [2439]),
+        ('Scream', [546, 1142, 1357, 2629]),
+        ('Percy Jackson', [7463, 8377]),
+    ]
+
+    tests_passed = True
+    for input_text, expected_output in test_cases:
+        if not assertListEquals(
+            chatbot.find_movies_by_title(chatbot.preprocess(input_text)),
+            expected_output,
+            "Incorrect output for find_movies_by_title(chatbot.preprocess('{}')).".format(input_text)
+        ):
+            tests_passed = False
+    if tests_passed:
+        print('find_movies_by_title_creative() sanity check passed!')
+    print()
+
 
 def test_find_movies_by_title():
     print("Testing find_movies_by_title() functionality...")
@@ -225,44 +273,6 @@ def test_find_movies_closest_to_title():
             tests_passed = False
     if tests_passed:
         print('find_movies_closest_to_title() sanity check passed!')
-    misspelled = "Te"
-
-    if assertListEquals(
-            chatbot.find_movies_closest_to_title(misspelled, max_distance=3),
-            [8082, 4511, 1664],
-            "Incorrect output for test_find_movies_closest_to_title('{}', max_distance={})".format(misspelled, 3),
-            orderMatters=False
-    ):
-        print('find_movies_closest_to_title() sanity check passed!')
-    misspelled = "BAT-MAAAN"
-
-    if assertListEquals(
-            chatbot.find_movies_closest_to_title(misspelled, max_distance=3),
-            [524, 5743],
-            "Incorrect output for test_find_movies_closest_to_title('{}', max_distance={})".format(misspelled, 3),
-            orderMatters=False
-    ):
-        print('find_movies_closest_to_title() sanity check passed!')
-
-    misspelled = "Blargdeblargh"
-
-    if assertListEquals(
-            chatbot.find_movies_closest_to_title(misspelled, max_distance=4),
-            [],
-            "Incorrect output for test_find_movies_closest_to_title('{}', max_distance={})".format(misspelled, 3),
-            orderMatters=False
-    ):
-        print('find_movies_closest_to_title() sanity check passed!')
-
-    misspelled = "the notbook"
-
-    if assertListEquals(
-            chatbot.find_movies_closest_to_title(misspelled, max_distance=3),
-            [5448],
-            "Incorrect output for test_find_movies_closest_to_title('{}', max_distance={})".format(misspelled, 3),
-            orderMatters=False
-    ):
-        print('find_movies_closest_to_title() sanity check passed!')
     print()
     return True
 
@@ -289,51 +299,7 @@ def test_disambiguate():
             tests_passed = False
     if tests_passed:
         print('disambiguate() sanity check passed!')
-    clarification = "2"
-    candidates = [1142, 1357, 2629, 546]
-    if assertListEquals(
-            chatbot.disambiguate(clarification, candidates),
-            [1357],
-            "Incorrect output for disambiguate('{}', {})".format(clarification, candidates),
-            orderMatters=False
-    ):
-        print('disambiguate() sanity check passed!')
-    clarification = "2"
-    candidates = [8082, 4511, 1664]
-    if assertListEquals(
-            chatbot.disambiguate(clarification, candidates),
-            [4511],
-            "Incorrect output for disambiguate('{}', {})".format(clarification, candidates),
-            orderMatters=False
-    ):
-        print('disambiguate() sanity check passed!')
-    clarification = "most recent"
-    candidates = [524, 5743]
-    if assertListEquals(
-            chatbot.disambiguate(clarification, candidates),
-            [524],
-            "Incorrect output for disambiguate('{}', {})".format(clarification, candidates),
-            orderMatters=False
-    ):
-        print('disambiguate() sanity check passed!')
-    clarification = "the second one"
-    candidates = [3812, 6294, 4325, 5399, 6735, 7274, 7670, 7842]
-    if assertListEquals(
-            chatbot.disambiguate(clarification, candidates),
-            [6294],
-            "Incorrect output for disambiguate('{}', {})".format(clarification, candidates),
-            orderMatters=False
-    ):
-        print('disambiguate() sanity check passed!')
-    clarification = "the Goblet of Fire one"
-    candidates = [3812, 4325, 5399, 6294, 6735, 7274, 7670, 7842]
-    if assertListEquals(
-            chatbot.disambiguate(clarification, candidates),
-            [6294],
-            "Incorrect output for disambiguate('{}', {})".format(clarification, candidates),
-            orderMatters=False
-    ):
-        print('disambiguate() sanity check passed!')
+
     print()
     return True
 
@@ -345,7 +311,7 @@ def test_disambiguate_complex():
     # add more test cases here!!!
     test_cases = [
         ('2', [8082, 4511, 1664], [4511]),
-        ('most recent', [524, 5743], [1524]),
+        ('most recent', [524, 5743], [524]),
         ('the Goblet of Fire one', [3812, 4325, 5399, 6294, 6735, 7274, 7670, 7842], [6294]),
         ('the second one', [3812, 6294, 4325, 5399, 6735, 7274, 7670, 7842], [6294]),
     ]
@@ -415,6 +381,7 @@ def main():
     parser.add_argument('--recommend', help='Tests only the recommend function', action='store_true')
     parser.add_argument('--binarize', help='Tests only the binarize function', action='store_true')
     parser.add_argument('--similarity', help='Tests only the similarity function', action='store_true')
+    parser.add_argument('--find_movies_creative', help='Tests only the find_movies_creative function', action='store_true')
 
     args = parser.parse_args()
     if args.extract_titles:
@@ -435,6 +402,9 @@ def main():
     if args.similarity:
         test_similarity()
         return
+    if args.find_movies_creative:
+        test_find_movies_by_title_creative()
+        return
 
     testing_creative = args.creative
     testing_all = args.all
@@ -449,10 +419,12 @@ def main():
         test_similarity()
 
     if testing_creative or testing_all:
+        # comment out test_find_movies_closest_to_title() if it's taking too long!
         test_find_movies_closest_to_title()
         test_extract_sentiment_for_movies()
         test_disambiguate()
         test_disambiguate_complex()
+        test_find_movies_by_title_creative()
 
 
 if __name__ == '__main__':
