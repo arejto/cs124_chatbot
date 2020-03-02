@@ -17,9 +17,12 @@ class Chatbot:
     def __init__(self, creative=False):
         # The chatbot's default name is `moviebot`. Give your chatbot a new name.
         self.name = 'moviebot'
-
         self.SPELL_CHECK_FLAG = False
+        self.DISAMBIGUATE_FLAG = False
         self.creative = creative
+        self.candidates = None
+        self.sentiment_last_line = None
+
 
         # This matrix has the following shape: num_movies x num_users
         # The values stored in each row i and column j is the rating for
@@ -27,6 +30,7 @@ class Chatbot:
         self.titles, ratings = movielens.ratings()
         self.sentiment = movielens.sentiment()
 
+        self.english_titles_set = self.generate_titles()
         # Construct a stemmed sentiment lexicon
         self.stemmedsentiment = {}
         for word in self.sentiment:
@@ -51,6 +55,20 @@ class Chatbot:
     #############################################################################
     # 1. WARM UP REPL                                                           #
     #############################################################################
+
+    def generate_titles(self):
+        english_titles = set([])
+        for t in self.titles:
+            # take only the "normal spelling". drop the year and alt name
+            if t[0][0] != '(':
+                english_title = t[0].split('(')[0][:-1]
+            # if leading '(', take the first two 
+            else:
+                english_title = '('.join(t[0].split('(')[0:2])[:-1]
+            english_titles.add(english_title.lower())
+
+        return english_titles
+
 
     def greeting(self):
         """Return a message that the chatbot uses to greet the user."""
@@ -77,6 +95,19 @@ class Chatbot:
         #                             END OF YOUR CODE                              #
         #############################################################################
         return goodbye_message
+
+    def do_not_understand(self, line):
+        import random
+        options = ["Hm, that's not really what I want to talk about right now, let's go back to movies",
+                    "Ok, got it.",
+                    "I'm getting bored with this. Let's chat about movies."]
+
+        if line.lower().startswith('can you'):
+            return 'Unfortunately the only thing I can do is talk about movies. I am a movie chatbot after all.'
+        elif line.lower().startswith('what is'):
+            return "Unfortunately I don't know what that is. I am a movie chatbot after all."
+
+        return options[int(random.random() * len(options))]
 
     ###############################################################################
     # 2. Modules 2 and 3: extraction and transformation                           #
@@ -110,26 +141,64 @@ class Chatbot:
         yes_re = '.*(yes|yea|yeah|sure|yup|ok).*' 
         no_re = '.*(no|nah|negative).*'
         # no_phrases = set(['no', 'nope', 'nah', 'negative'])
-        response = "baseic"
-
+        response = self.do_not_understand(line)
         if self.creative:       # CREATIVE MODE
+            ## SPELL CHECK LOGIC
             if self.SPELL_CHECK_FLAG:
                 if line == 'yes':
-                    response = 'Great, you like "The Notebook".'
+                    response = self.generate_sentiment_response(self.sentiment_last_line, self.titles[self.candidates[0]][0], self.candidates[0])
+                    self.sentiment_last_line = 0
+                    self.candidates = None
                 else:
                     response = "What did you like?"
                 self.SPELL_CHECK_FLAG = False
+
+            if self.DISAMBIGUATE_FLAG:
+                disambiguated = self.disambiguate(clarification=line, candidates=self.candidates)
+                if len(disambiguated) == 1:
+                    response = self.generate_sentiment_response(self.sentiment_last_line, self.titles[disambiguated[0]][0], disambiguated[0])
+                    self.DISAMBIGUATE_FLAG = False
+                    self.sentiment_last_line = 0
+                elif len(disambiguated) == 0:
+                    response = 'Sorry I don"t know that'
+                    self.DISAMBIGUATE_FLAG = False
+                else: # len(disambiguated) >= 1
+                    response = 'Which one do you mean? ' + '\n'.join(np.array(self.titles)[disambiguated, 0])
+                    ## TODO: risk of loop
+
             movie_titles = self.extract_titles(line)
             # find movies by title
             if len(movie_titles) == 1:
-                if self.find_movies_by_title(movie_titles[0]) == []:
+                self.sentiment_last_line = self.extract_sentiment(line)
+                possible_movies = self.find_movies_by_title(movie_titles[0])
+                ## SPELL CHECK LOGIC
+                if possible_movies == []:
                     close_spellings = self.find_movies_closest_to_title(movie_titles[0])
+                    self.candidates = close_spellings
                     print (close_spellings)
-                    if len(close_spellings) > 0:
-                        response = "Did you mean " + ' '.join(np.array(self.titles)[close_spellings, 0]) + ". Answer 'yes' or 'no'!"
+                    if len(close_spellings) == 1:
+                        spell_check_guess = ''.join(np.array(self.titles)[close_spellings, 0])
+                        response = "Did you mean " + spell_check_guess + "? Answer 'yes' or 'no'!"
                         self.SPELL_CHECK_FLAG = True
                     else:
                         response = "Sorry I don't know that movie"
+
+                # disambiguate
+                elif len(possible_movies) > 1: 
+                    self.sentiment_last_line = self.extract_sentiment(line)
+                    self.candidates = possible_movies
+                    text = np.array(self.titles)[possible_movies, 0]
+                    response = 'Did you mean ' + '\n'.join(text)
+                    self.DISAMBIGUATE_FLAG = True
+
+                else: # len(possible movies) == 0
+                    response = ''
+            elif len(movie_titles) == 0:
+                pass 
+            
+            else:
+                pass
+
             # response = "I processed {} in starter mode!!".format(line)
         else:                   # STARTER MODE
             if self.ASKED_FOR_REC:  # Expecting some variation of 'yes' or 'no' as an answer
@@ -171,6 +240,22 @@ class Chatbot:
         #############################################################################
         return response
 
+    def generate_sentiment_response(self, sentiment, title, movie_index):
+        if sentiment == 0:              # Neutral sentiment
+            return "I'm sorry, I'm not sure if you liked \"{}\". Tell me more about it.".format(title)
+        else:
+            self.user_ratings[movie_index] = sentiment
+            self.movies_processed.add(movie_index)
+            if len(self.movies_processed) >= 5:
+                self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
+                if sentiment > 0:
+                    return("Got it, you liked \"{}\"! Let me think...".format(title) + self.giveRecommendation())
+                else:   # sentiment < 0
+                    return("I see, you didn't liked \"{}\". Let me think...".format(title) + self.giveRecommendation())
+            if sentiment > 0:
+                return "OK, you liked \"{}\"! Tell me what you thought of another movie.".format(title)
+            else:   # sentiment < 0
+                return "OK, so you didn't like \"{}\"! Tell me what you thought of another movie.".format(title)
 
     def generateResponseStarter(self, title, movie_indices, line):
         """Generate an appropriate chatbot response given a title, list of movie indices, and an input line
@@ -196,22 +281,7 @@ class Chatbot:
         else:                               # Exactly one valid movie was found from the title
             movie_index = movie_indices[0]
             sentiment = self.extract_sentiment(line)
-
-            if sentiment == 0:              # Neutral sentiment
-                return "I'm sorry, I'm not sure if you liked \"{}\". Tell me more about it.".format(title)
-            else:
-                self.user_ratings[movie_index] = sentiment
-                self.movies_processed.add(movie_index)
-                if len(self.movies_processed) >= 5:
-                    self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
-                    if sentiment > 0:
-                        return("Got it, you liked \"{}\"! Let me think...".format(title) + self.giveRecommendation())
-                    else:   # sentiment < 0
-                        return("I see, you didn't liked \"{}\". Let me think...".format(title) + self.giveRecommendation())
-                if sentiment > 0:
-                    return "OK, you liked \"{}\"! Tell me what you thought of another movie.".format(title)
-                else:   # sentiment < 0
-                    return "OK, so you didn't like \"{}\"! Tell me what you thought of another movie.".format(title)
+            self.generate_sentiment_response(sentiment, title, movie_index)
 
     def giveRecommendation(self):
         """ Returns a message giving a single recommendation based on the data points already received
@@ -280,6 +350,16 @@ class Chatbot:
         """
         quotedFormat = '\"(.*?)\"'
         potential_titles = re.findall(quotedFormat, preprocessed_input)
+
+        words = preprocessed_input.split(' ')
+        if self.creative:
+            for i in range(len(words) + 1):
+                for j in range(i + 1, len(words) + 1):
+                    possible_title = ' '.join(words[i:j])
+                    possible_title = self.prune_article(possible_title)
+                    if possible_title.lower() in self.english_titles_set:
+                        potential_titles.append(possible_title)
+
         return potential_titles
 
 
@@ -544,7 +624,7 @@ class Chatbot:
         (represented as indices), and a string given by the user as clarification
         (eg. in response to your bot saying "Which movie did you mean: Titanic (1953)
         or Titanic (1997)?"), use the clarification to narrow down the list and return
-        a smaller list of candidates (hopefully just 1!)
+        a smaller list of self.candidates (hopefully just 1!)
 
         - If the clarification uniquely identifies one of the movies, this should return a 1-element
         list with the index of that movie.
@@ -555,7 +635,7 @@ class Chatbot:
           chatbot.disambiguate("1997", [1359, 2716]) should return [1359]
 
         :param clarification: user input intended to disambiguate between the given movies
-        :param candidates: a list of movie indices
+        :param self.candidates: a list of movie indices
         :returns: a list of indices corresponding to the movies identified by the clarification
         """
         ids = []

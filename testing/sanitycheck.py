@@ -125,9 +125,8 @@ def test_extract_titles_creative():
 
     # add more test cases here!!!
     test_cases = [
-        ('I liked "The Notebook"', ["The Notebook"]),
-        ('You are a great bot!', []),
-        ('I enjoyed "Titanic (1997)" and "Scream 2 (1997)"', ["Titanic (1997)", "Scream 2 (1997)"]),
+        ('I liked The NoTeBoOk', ["The Notebook"]),
+        ('I thought 10 things i hate about you was great', ["10 Things I Hate About You"]),
     ]
 
     tests_passed = True
@@ -408,23 +407,23 @@ def main():
 
     testing_creative = args.creative
     testing_all = args.all
+    test_extract_titles_creative()
+    # if not testing_creative or testing_all:
+    #     test_extract_titles()
+    #     test_find_movies_by_title()
+    #     test_extract_sentiment()
+    #     # comment out test_recommend() if it's taking too long!
+    #     test_recommend()
+    #     test_binarize()
+    #     test_similarity()
 
-    if not testing_creative or testing_all:
-        test_extract_titles()
-        test_find_movies_by_title()
-        test_extract_sentiment()
-        # comment out test_recommend() if it's taking too long!
-        test_recommend()
-        test_binarize()
-        test_similarity()
-
-    if testing_creative or testing_all:
-        # comment out test_find_movies_closest_to_title() if it's taking too long!
-        test_find_movies_closest_to_title()
-        test_extract_sentiment_for_movies()
-        test_disambiguate()
-        test_disambiguate_complex()
-        test_find_movies_by_title_creative()
+    # if testing_creative or testing_all:
+    #     # comment out test_find_movies_closest_to_title() if it's taking too long!
+    #     test_find_movies_closest_to_title()
+    #     test_extract_sentiment_for_movies()
+    #     test_disambiguate()
+    #     test_disambiguate_complex()
+    #     test_find_movies_by_title_creative()
 
 
 if __name__ == '__main__':
