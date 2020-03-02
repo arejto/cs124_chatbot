@@ -7,6 +7,7 @@ import movielens
 import numpy as np
 import re
 import math
+import collections
 from PorterStemmer import PorterStemmer
 
 # noinspection PyMethodMayBeStatic
@@ -26,12 +27,23 @@ class Chatbot:
         self.titles, ratings = movielens.ratings()
         self.sentiment = movielens.sentiment()
 
+        # Construct a stemmed sentiment lexicon
+        self.stemmedsentiment = {}
+        for word in self.sentiment:
+            self.stemmedsentiment[PorterStemmer().stem(word)] = self.sentiment[word]
+
         #############################################################################
         # TODO: Binarize the movie ratings matrix.                                  #
         #############################################################################
 
         # Binarize the movie ratings before storing the binarized matrix.
-        self.ratings = ratings
+        self.ratings = self.binarize(ratings)
+
+        self.user_ratings = np.zeros(len(self.ratings))
+        self.movies_processed = set([])
+        self.already_recommended = set([])
+        self.recommendations = collections.deque([])
+        self.ASKED_FOR_REC = False
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -94,9 +106,13 @@ class Chatbot:
         # possibly calling other functions. Although modular code is not graded,    #
         # it is highly recommended.                                                 #
         #############################################################################
+        # yes_phrases = set(['yes', 'yea', 'yeah', 'sure', 'yup', 'ok', 'okay'])
+        yes_re = '.*(yes|yea|yeah|sure|yup|ok).*' 
+        no_re = '.*(no|nah|negative).*'
+        # no_phrases = set(['no', 'nope', 'nah', 'negative'])
         response = "baseic"
-        
-        if self.creative:
+
+        if self.creative:       # CREATIVE MODE
             if self.SPELL_CHECK_FLAG:
                 if line == 'yes':
                     response = 'Great, you like "The Notebook".'
@@ -115,23 +131,106 @@ class Chatbot:
                     else:
                         response = "Sorry I don't know that movie"
             # response = "I processed {} in starter mode!!".format(line)
-        else:
-            movie_titles= self.extract_titles(line)
-            if len(movie_titles) > 1:
+        else:                   # STARTER MODE
+            if self.ASKED_FOR_REC:  # Expecting some variation of 'yes' or 'no' as an answer
+                if re.match(yes_re, line.lower()):
+                    return self.giveRecommendation()
+                elif re.match(no_re, line.lower()):
+                    self.ASKED_FOR_REC = False
+                    return "Ok. Let's talk about more movies!"
+                else:
+                    return "I'm sorry, but I didn't quite understand your answer to my question. Would you like more recommendations--yes or no?"
+
+            movie_titles = self.extract_titles(line)
+
+            if len(movie_titles) > 1:        # Extracted multiple candidate movie titles from the line (basic mode doesn't handle this)
                 return "Please tell me about one movie at a time. Go ahead."
-            elif len(movie_titles) == 0:
-                return "Sorry, I don't understand. Tell me about a movie that you have seen."
-            else:
-                self.find_movies_by_title(movie_titles[0])
-                self.extract_sentiment(line)
 
+            elif len(movie_titles) == 0:     # Extracted no candidate movie titles at all from the line
+                # If the user's input text has the word recommend, assume they are asking for a recommendation 
+                if line.lower().find('recommend') != -1 and len(self.movies_processed) < 5:     
+                    return "Before I make any recommendations, I need to learn more about your preferences. Please tell me about another movie you liked."
+                
+                elif line.lower().find('recommend') != -1 and len(self.movies_processed) >= 5:
+                    return self.giveRecommendation()
 
-                response = "I processed {} in creative mode!!".format(line)
+                else: # Otherwise, our chatbot is unable to process the user's message.
+                    return "Sorry, I don't understand. Tell me about a movie that you have seen."
+
+            else:                            # Extracted exactly one candidate movie title from the line
+                title = movie_titles[0]
+                movie_indices = self.find_movies_by_title(movie_titles[0])
+                response = self.generateResponseStarter(title, movie_indices, line)
+
+                # IF RESPONSE IS SOMEHOW INVALID, RETURN SOME GENERAL RESPONSE
+
+                return response
 
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
         return response
+
+
+    def generateResponseStarter(self, title, movie_indices, line):
+        """Generate an appropriate chatbot response given a title, list of movie indices, and an input line
+
+        According to spec for the starter implementation, if an input line yields 0 or >1 movie index, we are
+        unable to process the information and return a response saying so.
+
+        If there is exactly one movie index in movie_indices, we must process the sentiment. If the sentiment is
+        non-neutral, we add it appropriately to self.user_ratings, and return a message which confirms that we 
+        have processed the sentiment.
+
+        Once we have processed >= 5 data points, the chatbot begins to offer recommendations to the user using the
+        self.recommend function.
+        """
+        response = "Please tell me more about your movie preferences" # placeholder
+
+        if len(movie_indices) == 0:         # If no valid movies were found from the title
+            return "Sorry, I've never heard of a movie called \"{}\". Please tell me about another movie you liked.".format(title)
+
+        elif len(movie_indices) > 1:        # If multiple valid movies were fround from the title
+            return "I found more than one movie called \"{}\". Can you please clarify?".format(title)
+
+        else:                               # Exactly one valid movie was found from the title
+            movie_index = movie_indices[0]
+            sentiment = self.extract_sentiment(line)
+
+            if sentiment == 0:              # Neutral sentiment
+                return "I'm sorry, I'm not sure if you liked \"{}\". Tell me more about it.".format(title)
+            else:
+                self.user_ratings[movie_index] = sentiment
+                self.movies_processed.add(movie_index)
+                if len(self.movies_processed) >= 5:
+                    self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
+                    if sentiment > 0:
+                        return("Got it, you liked \"{}\"! Let me think...".format(title) + self.giveRecommendation())
+                    else:   # sentiment < 0
+                        return("I see, you didn't liked \"{}\". Let me think...".format(title) + self.giveRecommendation())
+                if sentiment > 0:
+                    return "OK, you liked \"{}\"! Tell me what you thought of another movie.".format(title)
+                else:   # sentiment < 0
+                    return "OK, so you didn't like \"{}\"! Tell me what you thought of another movie.".format(title)
+
+    def giveRecommendation(self):
+        """ Returns a message giving a single recommendation based on the data points already received
+
+        This only recommends movies which have not previously been recommended. If the current list of recommended movies is 
+        exhausted, we grab (a default of) the next 10 best recommendations and store that in self.recommendations
+        """
+        if len(self.recommendations) == 0:
+            self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
+        next_recommendation = self.recommendations.popleft()
+        # while next_recommendation in self.already_recommended:
+        #     next_recommendation = self.recommendations.popleft()
+        #     if len(self.recommendations) == 0:
+        #         self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
+        self.already_recommended.add(next_recommendation)
+        self.ASKED_FOR_REC = True
+        return "OK, given what you have told me, I think that you might like \"{}\". Would you like another recommendation?".format(self.titles[next_recommendation][0])
+            
+
 
     @staticmethod
     def preprocess(text):
@@ -183,7 +282,6 @@ class Chatbot:
         potential_titles = re.findall(quotedFormat, preprocessed_input)
         return potential_titles
 
-        #return []
 
     def prune_article(self, title):
         articles = ['a', 'an', 'the', 'la', 'le', "l'", 'les']
@@ -247,9 +345,8 @@ class Chatbot:
             partsList[1] = partsList[1][:-7]
         # Add either empty string or the year to the third index of partsList
         partsList.append(year)
-        print(partsList)
 
-        formerTitle = title    # Used in case the particle isn't pushed to the end of title
+        formerTitle = title    # Necessary in case the particle isn't pushed to the end of title
 
         # Construct newly formatted title by various cases
         if partsList[0] and partsList[2]:
@@ -262,34 +359,21 @@ class Chatbot:
         ids = []
         for id, t in enumerate(self.titles):
             # Only append ids where our titleString is at the front, and directly followed by year (if applicable)
+
+            # Checking re-formatted title
             if t[0].find(title) == 0:
                 possibleYear = t[0][len(title) + 1:]
                 if not possibleYear or re.match(yearFormatBeg, possibleYear):
                     ids.append(id)
                     continue
+            # Checking regular title (in case the article doesn't get shifted to end)
             if t[0].find(formerTitle) == 0:
                 possibleYear = t[0][len(formerTitle) + 1:]
                 if not possibleYear or re.match(yearFormatBeg, possibleYear):
                     ids.append(id)
                     continue
-            # if t[0].find(title) == 0 or t[0].find(formerTitle) == 0:
-            #     ids.append(id)
         return ids
 
-        '''
-        moviesDatabase = open('data/movies.txt', 'r')
-        words = title.split()
-        if words[0] in ['a', 'an', 'the']:
-            title = word[1:] + word[0]
-            print(title)
-        print(title)
-        for line in moviesDatabase:
-            startIndex = line.find('%') + 1
-            #yearInQuotes = line.find(r'(\d\d\d\d)', line)
-            #print(yearInQuotes)
-            #endIndex = 
-        return []
-        '''
 
     def extract_sentiment(self, preprocessed_input):
         """Extract a sentiment rating from a line of pre-processed text.
@@ -308,53 +392,70 @@ class Chatbot:
         :param preprocessed_input: a user-supplied line of text that has been pre-processed with preprocess()
         :returns: a numerical value for the sentiment of the text
         """
-        #print(self.sentiment)
-        #print(self.sentiment['unspeakable'])
-        # print(preprocessed_input)
-        words = re.sub("\".*?\"", "", preprocessed_input)
-        words = words.split()
-        words = preprocessed_input.split()
-        fillerWords = ['really', 'actually', 'very', 'honestly', 'extremely', 'that']
+        negation_words = ['not', 'never', 'nothing']
 
-        #remove filler words from list of words
-        words = [word for word in words if word not in fillerWords]
-        #print(words)
-        stemmedLexicon = {}
-        for word in self.sentiment:
-            stemmedLexicon[PorterStemmer().stem(word)] = self.sentiment[word]
+        words = re.sub("\".*?\"", "", preprocessed_input)   # Remove the singular movie title
+        words = re.sub(" +", " ", words)                    # Remove extraneous spaces
+        words = re.sub('[,.!?\\-]', "", words)              # Remove punctuation
+        words = words.split()                               # Split the words into a list
+        words = [word.lower() for word in words]            # Send all words to lowercase
 
-        #print(stemmedLexicon)
-        #print(words)
-        posWordCount = 0
-        negWordCount = 0
+        sentiment = 0       # Initial sentiment (will toggle up and down)
+        invert_flag = 1     # Whether to flip sentiment due to the presence of negation words
+
         for i, word in enumerate(words):
-            wordStem = PorterStemmer().stem(word)
-            #print(wordStem)
-            if wordStem in stemmedLexicon:
-                if i > 0 and (words[i-1] in ['not', 'never', 'nothing'] or words[i-1].endswith('n\'t')):
-                    # if i > 1 and (words[i-2] in ['not', 'never', 'nothing'] or words[i-2].endswith('n\'t')):
-                    #     if stemmedLexicon[wordStem] == 'pos':
-                    #         posWordCount += 1
-                    #     else:
-                    #         negWordCount += 1
-                    #     continue
-                    if stemmedLexicon[wordStem] == 'pos':
-                        negWordCount += 1
-                    else:
-                        posWordCount += 1
-                else:
-                    if stemmedLexicon[wordStem] == 'pos':
-                        posWordCount += 1
-                    else:
-                        negWordCount += 1
-        if posWordCount > negWordCount:
-            # print("positive")
+            # Invert the invert flag if you encounter a negation word
+            if i > 0 and words[i] in negation_words or words[i].endswith('\'t'):
+                invert_flag *= -1
+                continue
+
+            # Check if the word itself is in self.sentiment
+            if word in self.sentiment:
+                if self.sentiment[word] == 'pos':
+                    sentiment += 1 * invert_flag
+                else:       # self.sentiment[word] == 'neg'
+                    sentiment -= 1 * invert_flag
+                if invert_flag == -1:
+                    invert_flag = 1
+                continue
+
+            # Check if the word itself is in self.stemmedsentiment
+            if word in self.stemmedsentiment:
+                if self.stemmedsentiment[word] == 'pos':
+                    sentiment += 1 * invert_flag
+                else:       # self.sentiment[word] == 'neg'
+                    sentiment -= 1 * invert_flag
+                if invert_flag == -1:
+                    invert_flag = 1
+                continue
+
+            # Check if the stemmed word is in self.sentiment
+            stemmed_word = PorterStemmer().stem(word)
+            if stemmed_word in self.sentiment:
+                if self.sentiment[stemmed_word] == 'pos':
+                    sentiment += 1 * invert_flag
+                else:       # self.sentiment[word] == 'neg'
+                    sentiment -= 1 * invert_flag
+                if invert_flag == -1:
+                    invert_flag = 1
+                continue
+
+            # Check if the stemmed word is in self.stemmedsentiment
+            if stemmed_word in self.stemmedsentiment:
+                if self.stemmedsentiment[stemmed_word] == 'pos':
+                    sentiment += 1 * invert_flag
+                else:       # self.sentiment[word] == 'neg'
+                    sentiment -= 1 * invert_flag
+                if invert_flag == -1:
+                    invert_flag = 1
+                continue
+
+        # Return the sentiment (1 for positive, -1 for negative, 0 for neutral)
+        if sentiment > 0:
             return 1
-        if posWordCount < negWordCount:
-            # print("negative")
+        elif sentiment < 0:
             return -1
-        if posWordCount == negWordCount:
-            # print("neutral")
+        else:   # sentiment == 0
             return 0
 
 
@@ -529,11 +630,12 @@ class Chatbot:
         binarized_ratings = np.zeros_like(ratings)
         for row in range(len(ratings)):
             for col in range(len(ratings[0])):
-                if ratings[row][col] != 0 and ratings[row][col] <= threshold:
-                    binarized_ratings[row][col] = -1
-                elif ratings[row][col] > threshold:
+                if ratings[row][col] == 0:
+                    continue
+                if ratings[row][col] > threshold:
                     binarized_ratings[row][col] = 1
-        #print(binarized_ratings)
+                else:
+                    binarized_ratings[row][col] = -1
 
         #############################################################################
         #                             END OF YOUR CODE                              #
@@ -553,13 +655,12 @@ class Chatbot:
         #############################################################################
         # TODO: Compute cosine similarity between the two vectors.
         #############################################################################
-        #print(u)
-        #print(v)
         similarity = 0
+        denominator = np.linalg.norm(u) * np.linalg.norm(v)
+        if denominator == 0:
+            return 0 
         numerator = np.dot(u, v)
-        denominator = math.sqrt(np.dot(u, u)) * math.sqrt(np.dot(v,v)) 
         similarity = numerator / denominator
-        #print(similarity)
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -598,29 +699,16 @@ class Chatbot:
         # Populate this list with k movie indices to recommend to the user.
         recommendations = []
         ratingsList = []
-        # print(user_ratings)
-        # print(ratings_matrix)
-        # print(len(ratings_matrix))
-        for i in range(len(ratings_matrix)):
-            rating = np.dot(np.array([self.similarity(ratings_matrix[i], ratings_matrix[j]) if movieRating != 0 else 0 for j, movieRating in enumerate(user_ratings)]), user_ratings)
-            # for j, movieRating in enumerate(user_ratings):
-            #     if movieRating != 0:
-            #         similarity = self.similarity(ratings_matrix[i], ratings_matrix[j])
-            #         rating += similarity * movieRating
 
-            #print(rating)
-            #only want to append ratings on movies that the user hasn't already seen
-            if user_ratings[i] == 0:
-                ratingsList.append((rating, i))
-        # print(ratingsList)
+        for i in range(len(user_ratings)):
+            # If user has already rated this movie or we have already recommended this movie, continue
+            if user_ratings[i] != 0 or i in self.already_recommended:
+                continue
+            rating = np.dot(np.array([0 if movieRating == 0 else self.similarity(ratings_matrix[i], ratings_matrix[j]) for j, movieRating in enumerate(user_ratings)]), user_ratings)
+            ratingsList.append((rating, i))
+            
         ratingsList.sort(reverse=True)
-        # print(ratingsList)
-        # if len(ratingsList) >= k:
-        recommendations = [pair[1] for pair in ratingsList[:k]]            
-
-
-        print(recommendations)
-         
+        recommendations = [pair[1] for pair in ratingsList[:k]]      
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
