@@ -40,6 +40,7 @@ class Chatbot:
         self.ratings = self.binarize(ratings)
 
         self.user_ratings = np.zeros(len(self.ratings))
+        self.rated_indices = []
         self.movies_processed = set([])
         self.already_recommended = set([])
         self.recommendations = collections.deque([])
@@ -201,6 +202,7 @@ class Chatbot:
                 return "I'm sorry, I'm not sure if you liked \"{}\". Tell me more about it.".format(title)
             else:
                 self.user_ratings[movie_index] = sentiment
+                self.rated_indices.append(movie_index)
                 self.movies_processed.add(movie_index)
                 if len(self.movies_processed) >= 5:
                     self.recommendations = collections.deque(self.recommend(self.user_ratings, self.ratings))
@@ -694,15 +696,23 @@ class Chatbot:
         # with cosine similarity, no mean-centering, and no normalization of scores.          #
         #######################################################################################
 
-        # Populate this list with k movie indices to recommend to the user.
+        # Create a dense array containing movie ratings from user, keeping track of their indices.
+        rated_movies = []
+        dense_user_ratings = []
+
+        for i, rating in enumerate(user_ratings):
+            if rating != 0:
+                rated_movies.append(i)
+                dense_user_ratings.append(rating)
+
+        # Predict ratings based on movie similarities
         recommendations = []
         ratingsList = []
-
         for i in range(len(user_ratings)):
             # If user has already rated this movie or we have already recommended this movie, continue
             if user_ratings[i] != 0 or i in self.already_recommended:
                 continue
-            rating = np.dot(np.array([0 if movieRating == 0 else self.similarity(ratings_matrix[i], ratings_matrix[j]) for j, movieRating in enumerate(user_ratings)]), user_ratings)
+            rating = np.dot(np.array([self.similarity(ratings_matrix[i], ratings_matrix[j]) for j in rated_movies]), dense_user_ratings)
             ratingsList.append((rating, i))
             
         ratingsList.sort(reverse=True)
