@@ -28,11 +28,11 @@ Did not implement any of the above features: NO
 #########################################################################################
 # Team Contributions                                                                    #
 #########################################################################################
-TODO: Please write a short description of what each team member contributed!
-
+Tim and Kento worked on starter mode together. They created a great baseline. Alex worked
+on creative functions. Together, we integrated the two parts.
 
 #########################################################################################
 # Optional: Feel free to include anything else that you want us to know about your      #
 # implementation!                                                                       #
 #########################################################################################
-(optional) If you have anything else you want to add, delete this and type it here!
+n/a
